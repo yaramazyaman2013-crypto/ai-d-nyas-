@@ -65,13 +65,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 #chatHdr{padding:5px 10px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 #chatTitle{font-size:8px;color:var(--acc);letter-spacing:2px;text-transform:uppercase;font-weight:700}
-#chatScroll{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--b1) transparent}
-.cm{border-radius:7px;padding:5px 9px;max-width:70%}
+#chatBody{flex:1;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;min-height:0}
+.chatCol{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.chatCol+.chatCol{border-left:1px solid var(--b1)}
+.colHdr{padding:4px 9px;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--b1);background:var(--s2);display:flex;justify-content:space-between;align-items:center}
+.colHdr .ccnt{font-size:7px;color:var(--t3);font-weight:400;letter-spacing:0}
+#thoughtScroll,#speechScroll{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--b1) transparent;min-height:0}
+.cm{border-radius:7px;padding:5px 9px;max-width:92%}
 .cm .ca{font-size:7px;font-weight:700;margin-bottom:2px}
 .cm .ct{font-size:9px;line-height:1.5}
 .cm .ctime{font-size:7px;opacity:.4;margin-top:1px}
-.cm.think{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.18);align-self:flex-start;font-style:italic}
-.cm.speak{border:1px solid;align-self:flex-end}
+.cm.think{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.18);align-self:stretch;font-style:italic}
+.cm.speak{border:1px solid;align-self:stretch}
 </style>
 </head>
 <body>
@@ -105,14 +110,28 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <span id="chatTitle">💬 Zihin & Diyalog — Gemini AI</span>
       <span style="font-size:7px;color:var(--t3)">Yakın (200px): konuşabilir · Uzak: sadece düşünür</span>
     </div>
-    <div id="chatScroll"></div>
+    <div id="chatBody">
+      <div class="chatCol">
+        <div class="colHdr" style="color:#a78bfa">💭 Düşünceler<span class="ccnt" id="thoughtCnt">0</span></div>
+        <div id="thoughtScroll"></div>
+      </div>
+      <div class="chatCol">
+        <div class="colHdr" style="color:#5eead4">💬 Konuşmalar<span class="ccnt" id="speechCnt">0</span></div>
+        <div id="speechScroll"></div>
+      </div>
+    </div>
   </div>
 </div>
 <div id="cursorEl"></div>
 
 <script>
-const GEMINI_API_KEY = 'AIzaSyDByIbEt_3lou0XyCFvuW2GiXmtct3ieDA';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY;
+// İki API anahtarı arasında yük dağıtımı: ilk 3 ajan eski anahtarı, son 2 ajan yeni anahtarı kullanır
+const GEMINI_KEY_OLD = 'AIzaSyDByIbEt_3lou0XyCFvuW2GiXmtct3ieDA';
+const GEMINI_KEY_NEW = 'AIzaSyCnGEG7ZILkbQ6NVtqe0xtel1LzVTRQgnU';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=';
+function geminiUrlForAgent(agentId){
+  return GEMINI_BASE + (agentId < 3 ? GEMINI_KEY_OLD : GEMINI_KEY_NEW);
+}
 
 const canvas=document.getElementById('worldCanvas');
 const ctx=canvas.getContext('2d');
@@ -201,12 +220,12 @@ const OBJ={
 let objects=[];
 
 const ANIM={
-  rabbit:{emoji:'🐇',spd:1.4,hp:20,food:30,flee:true,agg:false,sz:9,dmg:0,stam:160},
-  deer:  {emoji:'🦌',spd:1.6,hp:50,food:70,flee:true,agg:false,sz:13,dmg:0,stam:220},
-  wolf:  {emoji:'🐺',spd:1.7,hp:100,food:0,flee:false,agg:true,sz:15,dmg:9,stam:200},
-  fish:  {emoji:'🐟',spd:.7,hp:10,food:20,flee:true,agg:false,sz:8,dmg:0,stam:120},
-  eagle: {emoji:'🦅',spd:2.2,hp:35,food:45,flee:false,agg:true,sz:12,dmg:6,stam:180},
-  bear:  {emoji:'🐻',spd:1.1,hp:150,food:90,flee:false,agg:true,sz:18,dmg:16,stam:240},
+  rabbit:{emoji:'🐇',spd:1.4,hp:20,food:30,flee:true,agg:false,sz:9,dmg:0,stam:120},
+  deer:  {emoji:'🦌',spd:1.6,hp:50,food:70,flee:true,agg:false,sz:13,dmg:0,stam:160},
+  wolf:  {emoji:'🐺',spd:1.5,hp:60,food:0,flee:false,agg:true,sz:15,dmg:3,stam:140},
+  fish:  {emoji:'🐟',spd:.7,hp:10,food:20,flee:true,agg:false,sz:8,dmg:0,stam:80},
+  eagle: {emoji:'🦅',spd:1.8,hp:25,food:45,flee:false,agg:true,sz:12,dmg:2,stam:120},
+  bear:  {emoji:'🐻',spd:.9,hp:100,food:90,flee:false,agg:true,sz:18,dmg:5,stam:160},
 };
 let animals=[];
 
@@ -427,7 +446,7 @@ SADECE JSON:
 {"thought":"iç düşünce 1-2 cümle türkçe özgün","speech":"yakındakine söz ya da ''","emotion":"duygu","action":"eylem","target":"hedef","craftItem":"tarif adı"}`;
 
   try{
-    const res=await fetch(GEMINI_URL,{
+    const res=await fetch(geminiUrlForAgent(ag.id),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -576,10 +595,10 @@ function updateAgent(ag){
     if(fi){ag.goal={type:'obj',ref:fi};ag.state='gather';ag.goalLabel='acil:ısınma';}
     else if((ag.inventory.wood||0)>=3&&(ag.inventory.stone||0)>=2&&hasItem(ag,'stone_axe')) tryCraft(ag,'campfire');
   }
-  const threat=animals.find(a=>a.agg&&!a.sleeping&&dist(ag,a)<140&&a.hp>0);
+  const threat=animals.find(a=>a.agg&&!a.sleeping&&dist(ag,a)<180&&a.hp>0);
   if(threat&&(!ag.goal||(ag.goal.type!=='flee'&&ag.goal.type!=='animal'))){
-    const cave=objects.filter(o=>o.type==='cave'||o.type==='house').sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-    if(hasItem(ag,'spear')&&ag.hp>60&&ag.energy>40){
+    const cave=objects.filter(o=>['cave','house','tent'].includes(o.type)).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if((hasItem(ag,'spear')||hasItem(ag,'bow'))&&ag.hp>50&&ag.energy>30){
       ag.goal={type:'animal',ref:threat};ag.state='hunt';ag.goalLabel='savun!';
     } else if(cave&&dist(ag,cave)<260){
       ag.goal={type:'obj',ref:cave};ag.state='hide';ag.goalLabel='mağaraya!';
@@ -591,6 +610,32 @@ function updateAgent(ag){
     }
   }
 
+  // Auto-use inventory items
+  // Eat from meat/honey stash when hungry
+  if(ag.hunger<50&&(ag.inventory.meat||0)>=1){
+    const eat=Math.min(2*SPD,ag.inventory.meat);
+    ag.inventory.meat-=eat; ag.hunger=Math.min(100,ag.hunger+eat*3);
+  }
+  if(ag.hunger<50&&(ag.inventory.honey||0)>=1){
+    const eat=Math.min(1.5*SPD,ag.inventory.honey);
+    ag.inventory.honey-=eat; ag.hunger=Math.min(100,ag.hunger+eat*2.5);
+  }
+  if(ag.hunger<60&&(ag.inventory.food||0)>=1){
+    const eat=Math.min(2*SPD,ag.inventory.food);
+    ag.inventory.food-=eat; ag.hunger=Math.min(100,ag.hunger+eat*2);
+  }
+  // Auto-heal with medicine when HP critical
+  if(ag.hp<50&&hasItem(ag,'medicine')){
+    ag.hp=Math.min(ag.maxHp,ag.hp+40);
+    ag.illness=null;ag.illnessTicks=0;
+    const i=ag.craftedItems.indexOf('medicine');if(i>=0)ag.craftedItems.splice(i,1);
+    const j=ag.craftedItems.findIndex(c=>c.includes('İlaç'));if(j>=0)ag.craftedItems.splice(j,1);
+    addLog(ag.id,'💊 İlaç kullandı');setEmotion(ag,'umutlu',75);
+  }
+  // Auto-wear clothing for warmth
+  if(ag.warmth<40&&hasItem(ag,'clothing')){
+    ag.warmth=Math.min(100,ag.warmth+.3*SPD);
+  }
   if(Math.random()<.003*SPD){
     const next=nextDesiredRecipe(ag);
     if(next) tryCraft(ag,next);
@@ -723,7 +768,8 @@ function updateAnimal(ani){
     return;
   }
   ani.wander-=SPD;
-  const near=agents.filter(a=>a.alive&&dist(a,ani)<150);
+  const aggroRange=ani.agg?110:150;
+  const near=agents.filter(a=>a.alive&&dist(a,ani)<aggroRange);
   const isRunning=ani.flee?near.length>0:(ani.agg&&near.length>0);
   if(isRunning){
     ani.stamina=Math.max(0,ani.stamina-.6*SPD);
@@ -745,8 +791,13 @@ function updateAnimal(ani){
   } else if(ani.agg&&near.length>0){
     const t=near[0]; const dx=t.x-ani.x,dy=t.y-ani.y,d=Math.sqrt(dx*dx+dy*dy)||1;
     if(d<28){
-      const armorRed=hasItem(t,'armor')?.4:1;
-      t.hp=Math.max(0,t.hp-ani.dmg*.05*SPD*armorRed);
+      const armorRed=hasItem(t,'armor')?.25:hasItem(t,'clothing')?.6:1;
+      const weaponDef=hasItem(t,'spear')?.5:hasItem(t,'bow')?.4:1;
+      t.hp=Math.max(0,t.hp-ani.dmg*.025*SPD*armorRed*weaponDef);
+      // Counter-attack when armed
+      if(hasItem(t,'spear')||hasItem(t,'bow')){
+        ani.hp-=(hasItem(t,'bow')?2.5:1.5)*SPD;
+      }
       t.injuries.push(ani.type+' ısırması');
       if(Math.random()<.04){addChatMsg(t.id,'Saldırı altındayım!','speak');setEmotion(t,'korkmuş',90);}
     } else{ani.vx=dx/d*ani.spd*SPD*spdMul;ani.vy=dy/d*ani.spd*SPD*spdMul;}
@@ -976,22 +1027,31 @@ function selectAgent(id){selected=selected===id?-1:id;renderSidebar()}
 const chatMsgs=[];
 function addChatMsg(agentId,text,type){
   const ag=agents.find(a=>a.id===agentId); if(!ag) return;
-  chatMsgs.push({name:ag.name,emoji:ag.emoji,color:ag.color,text,type,t:getTimeStr()});
-  if(chatMsgs.length>100) chatMsgs.splice(0,20);
+  const msg={name:ag.name,emoji:ag.emoji,color:ag.color,text,type,t:getTimeStr()};
+  chatMsgs.push(msg);
+  if(chatMsgs.length>300) chatMsgs.splice(0,60);
   renderChat();
 }
 function renderChat(){
-  const s=document.getElementById('chatScroll');
-  const atBottom=s.scrollHeight-s.clientHeight-s.scrollTop<50;
-  s.innerHTML=chatMsgs.slice(-35).map(m=>{
-    const bc=m.type==='speak'?'border-color:'+m.color+'55':'';
-    return`<div class="cm ${m.type}" style="${bc}">
-      <div class="ca" style="color:${m.color}">${m.emoji} ${m.name} ${m.type==='think'?'💭 düşünüyor':'💬 konuşuyor'}</div>
-      <div class="ct">${m.text}</div>
-      <div class="ctime">${m.t}</div>
-    </div>`;
-  }).join('');
-  if(atBottom) s.scrollTop=s.scrollHeight;
+  const thoughts=chatMsgs.filter(m=>m.type==='think').slice(-40);
+  const speeches=chatMsgs.filter(m=>m.type==='speak').slice(-40);
+  const renderCol=(scrollId,msgs)=>{
+    const s=document.getElementById(scrollId);
+    const atBottom=s.scrollHeight-s.clientHeight-s.scrollTop<60;
+    s.innerHTML=msgs.map(m=>{
+      const bc=m.type==='speak'?'border-color:'+m.color+'55':'';
+      return`<div class="cm ${m.type}" style="${bc}">
+        <div class="ca" style="color:${m.color}">${m.emoji} ${m.name}</div>
+        <div class="ct">${m.text}</div>
+        <div class="ctime">${m.t}</div>
+      </div>`;
+    }).join('');
+    if(atBottom) s.scrollTop=s.scrollHeight;
+  };
+  renderCol('thoughtScroll',thoughts);
+  renderCol('speechScroll',speeches);
+  document.getElementById('thoughtCnt').textContent=chatMsgs.filter(m=>m.type==='think').length;
+  document.getElementById('speechCnt').textContent=chatMsgs.filter(m=>m.type==='speak').length;
 }
 
 const logs=[];
