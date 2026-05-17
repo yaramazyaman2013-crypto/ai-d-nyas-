@@ -324,9 +324,35 @@ const RECIPES={
   house:     {tier:3,n:{wood:8,stone:5},need:['tent','wall'],g:'🏠Ev',item:null,fx:{place:'house'}},
   armor:     {tier:3,n:{iron:3,fiber:4},need:['clothing'],g:'🛡️Zırh',item:'armor',fx:{defense:1}},
   iron_axe:  {tier:3,n:{wood:1,iron:2},need:['stone_axe'],g:'⛏️Demir Balta',item:'iron_axe',fx:{gatherWood:3,gatherStone:2}},
+  iron_spear:{tier:3,n:{wood:2,iron:1},need:['spear'],g:'⚔️Demir Mızrak',item:'iron_spear',fx:{hunt:3}},
+  iron_sword:{tier:3,n:{wood:1,iron:3},need:['iron_axe'],g:'🗡️Kılıç',item:'iron_sword',fx:{hunt:4,defense:1}},
 };
 
 function hasItem(ag,item){return ag.craftedItems.some(c=>c===item)}
+function countItem(ag,item){return ag.craftedItems.filter(c=>c===item).length}
+function builtCount(type){return objects.filter(o=>o.type===type).length}
+function agentHasOwnShelter(ag){
+  return objects.some(o=>o.shelter&&o.owner===ag.id);
+}
+
+// Only true if agent NEEDS this item (no duplicate spam)
+function needsRecipe(ag,key){
+  const r=RECIPES[key]; if(!r) return false;
+  if(r.item){
+    // Carry only 1 of each tool, except arrows which can stack to 5
+    const cap=key==='arrow'?5:1;
+    if(countItem(ag,r.item)>=cap) return false;
+  }
+  // Built structures: limit per agent / per world
+  if(key==='campfire') return builtCount('campfire')<2&&!ag.builtThisLife.includes('campfire');
+  if(key==='tent')     return !agentHasOwnShelter(ag)&&!ag.builtThisLife.includes('tent');
+  if(key==='house')    return !agentHasOwnShelter(ag)&&!ag.builtThisLife.includes('house');
+  if(key==='wall')     return builtCount('wall')<6;
+  if(key==='farm_plot')return builtCount('crops')<4;
+  if(key==='storage')  return builtCount('storage')<2&&!ag.builtThisLife.includes('storage');
+  if(key==='trap')     return builtCount('trap')<3;
+  return true;
+}
 
 function tryCraft(ag,key){
   const r=RECIPES[key]; if(!r) return false;
@@ -370,15 +396,42 @@ function tryCraft(ag,key){
 
 function craftableNow(ag){
   return Object.entries(RECIPES).filter(([k,r])=>{
+    if(!needsRecipe(ag,k)) return false;
     if(r.need&&!r.need.every(req=>hasItem(ag,req))) return false;
     return Object.entries(r.n).every(([m,q])=>(ag.inventory[m]||0)>=q);
   }).map(([k])=>k);
 }
 function nextDesiredRecipe(ag){
-  const priority=['medicine','stick','stone_axe','spear','campfire','clothing','bow','tent','wall','farm_plot','storage','trap','iron_axe','house','armor','arrow','basket'];
+  // SURVIVAL & WEAPONS FIRST, then shelter, then advanced
+  const priority=[
+    'spear',       // weapon for survival
+    'stone_axe',   // gather speed
+    'campfire',    // warmth + prereq
+    'clothing',    // warmth
+    'medicine',    // healing (only if hurt/sick)
+    'tent',        // shelter
+    'wall',        // defense
+    'house',       // permanent shelter
+    'bow',         // ranged hunting
+    'farm_plot',   // food source
+    'storage',
+    'iron_axe',    // iron tier
+    'iron_spear',  // upgraded weapon
+    'iron_sword',  // best weapon
+    'armor',       // iron defense
+    'trap',
+    'arrow',
+    'basket',
+  ];
   const can=craftableNow(ag);
-  for(const k of priority) if(can.includes(k)) return k;
-  return can[0]||null;
+  // Skip medicine if not hurt
+  for(const k of priority){
+    if(!can.includes(k)) continue;
+    if(k==='medicine'&&ag.hp>70&&!ag.illness) continue;
+    if(k==='clothing'&&ag.warmth>60&&!weather.cold) continue;
+    return k;
+  }
+  return null;
 }
 
 const pendingThinks=new Set();
@@ -444,24 +497,40 @@ STRATEJİ: Önce wood/stone/fiber topla, sonra stick→stone_axe→spear→campf
 SADECE JSON:
 {"thought":"iç düşünce 1-2 cümle türkçe özgün","speech":"yakındakine söz ya da ''","emotion":"duygu","action":"eylem","target":"hedef","craftItem":"tarif adı"}`;
 
-  try{
-    const res=await fetch(geminiUrlForAgent(ag.id),{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+  // Try primary key; on failure (rate-limit, etc.) try the other key
+  async function callGemini(url){
+    const res=await fetch(url,{
+      method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         contents:[{parts:[{text:p}]}],
         generationConfig:{temperature:.9,maxOutputTokens:300,responseMimeType:'application/json'}
       })
     });
-    const data=await res.json();
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }
+  try{
+    let data;
+    try{ data=await callGemini(geminiUrlForAgent(ag.id)); }
+    catch(e1){
+      // Fallback to the other key
+      const altKey=ag.id<3?GEMINI_KEY_NEW:GEMINI_KEY_OLD;
+      try{ data=await callGemini(GEMINI_BASE+altKey); }
+      catch(e2){ throw e2; }
+    }
     const txt=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'').trim();
-    let parsed; try{parsed=JSON.parse(txt)}catch{pendingThinks.delete(ag.id);return}
+    let parsed; try{parsed=JSON.parse(txt)}catch{addChatMsg(ag.id,'(düşünce çözümlenemedi)','think');pendingThinks.delete(ag.id);return}
     if(parsed.thought) addChatMsg(ag.id,parsed.thought,'think');
     const canSpeak=agents.some(b=>b.id!==ag.id&&dist(ag,b)<200&&b.alive);
     if(parsed.speech&&parsed.speech.trim()&&canSpeak) setTimeout(()=>addChatMsg(ag.id,parsed.speech,'speak'),700);
     if(parsed.emotion) setEmotion(ag,parsed.emotion,75);
     applyDecision(ag,parsed.action||'explore',parsed.target||'',parsed.craftItem||'');
-  }catch(e){console.warn('Gemini error',e)}
+  }catch(e){
+    console.warn('Gemini error',e);
+    // Surface as a visible thought so the panel isn't empty
+    const fallbacks=['Etrafa bakıyorum...','Ne yapmalıyım acaba...','Bu dünyada hayatta kalmalıyım.','Bir plan kurmalıyım.','Sessizlik içinde düşünüyorum.'];
+    addChatMsg(ag.id,fallbacks[Math.floor(Math.random()*fallbacks.length)],'think');
+  }
   pendingThinks.delete(ag.id);
 }
 
@@ -483,35 +552,56 @@ function neededResource(ag){
 
 // Autonomous goal selection — drives agents even if AI is silent
 function autoPickGoal(ag){
-  // 1. Critical needs first
+  const ambientThought=(txt)=>{ if(Math.random()<.5) addChatMsg(ag.id,txt,'think'); };
+
+  // 1. Critical needs
   if(ag.thirst<35){
     const w=objects.filter(o=>['lake','pond'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-    if(w){ag.goal={type:'obj',ref:w};ag.state='gather';ag.goalLabel='su';return;}
+    if(w){ag.goal={type:'obj',ref:w};ag.state='gather';ag.goalLabel='su';ambientThought('Susadım, suya gitmeliyim.');return;}
   }
   if(ag.hunger<40){
-    // try inventory first (handled elsewhere), then forage
-    const f=objects.filter(o=>['berry','mushroom','farm','crops','beehive'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-    if(f){ag.goal={type:'obj',ref:f};ag.state='gather';ag.goalLabel='yemek';return;}
+    if((ag.inventory.meat||0)<1&&(ag.inventory.food||0)<1){
+      const f=objects.filter(o=>['berry','mushroom','farm','crops','beehive'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+      if(f){ag.goal={type:'obj',ref:f};ag.state='gather';ag.goalLabel='yemek';ambientThought('Aç kaldım, yemek bulmalıyım.');return;}
+    }
   }
-  // 2. Try to craft something useful
+  // 2. Sığınak yoksa öncelikle barınak için malzeme veya inşa
+  if(!agentHasOwnShelter(ag)&&!objects.some(o=>o.shelter&&o.type==='cave'&&dist(ag,o)<400)){
+    if(craftableNow(ag).includes('tent')){tryCraft(ag,'tent');ambientThought('Barınak şart, çadır kuruyorum.');return;}
+    if(craftableNow(ag).includes('campfire')){tryCraft(ag,'campfire');ambientThought('Kamp ateşi yakmalıyım.');return;}
+  }
+  // 3. Silah yoksa mızrak için kaynak/craft
+  if(!hasItem(ag,'spear')){
+    if(craftableNow(ag).includes('spear')){tryCraft(ag,'spear');ambientThought('Mızrak yapıp kendimi koruyacağım.');return;}
+    // gather needed mats
+    if((ag.inventory.wood||0)<2){
+      const tree=objects.filter(o=>o.type==='tree'&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+      if(tree){ag.goal={type:'obj',ref:tree};ag.state='gather';ag.goalLabel='mızrak:odun';ambientThought('Mızrak için odun topluyorum.');return;}
+    }
+    if((ag.inventory.stone||0)<1){
+      const st=objects.filter(o=>o.type==='stone'&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+      if(st){ag.goal={type:'obj',ref:st};ag.state='gather';ag.goalLabel='mızrak:taş';ambientThought('Mızrak ucu için taş arıyorum.');return;}
+    }
+  }
+  // 4. Craft anything useful next
   const next=nextDesiredRecipe(ag);
-  if(next){tryCraft(ag,next);return;}
-  // 3. Gather what we need
+  if(next){tryCraft(ag,next);ambientThought('Sıradaki üretimim: '+next);return;}
+  // 5. Resource gathering
   const need=neededResource(ag);
   const o=objects.filter(o=>o.type===need&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-  if(o){ag.goal={type:'obj',ref:o};ag.state='gather';ag.goalLabel='topl:'+need;return;}
-  // 4. Pack hunting — join tribe-mate's hunt
+  if(o){ag.goal={type:'obj',ref:o};ag.state='gather';ag.goalLabel='topl:'+need;ambientThought('Daha çok '+need+' lazım.');return;}
+  // 6. Pack hunting
   if(ag.tribe){
     const t=tribes.find(t=>t.id===ag.tribe);
     if(t){
       const mate=agents.find(a=>t.members.includes(a.id)&&a.id!==ag.id&&a.alive&&a.goal&&a.goal.type==='animal'&&a.goal.ref&&a.goal.ref.hp>0);
-      if(mate){ag.goal={type:'animal',ref:mate.goal.ref};ag.state='hunt';ag.goalLabel='sürü av:'+mate.goal.ref.type;return;}
+      if(mate){ag.goal={type:'animal',ref:mate.goal.ref};ag.state='hunt';ag.goalLabel='sürü av:'+mate.goal.ref.type;ambientThought('Kabileme katılıyorum, av peşindeler.');return;}
     }
   }
-  // 5. Hunt easy prey if armed
+  // 7. Hunt if armed
   if(hasItem(ag,'spear')||hasItem(ag,'bow')){
     const easy=animals.filter(a=>a.hp>0&&(a.sleeping||(!a.agg&&a.stamina<a.maxStam*.4))).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-    if(easy&&dist(ag,easy)<350){ag.goal={type:'animal',ref:easy};ag.state='hunt';ag.goalLabel='av:'+easy.type;return;}
+    if(easy&&dist(ag,easy)<350){ag.goal={type:'animal',ref:easy};ag.state='hunt';ag.goalLabel='av:'+easy.type;ambientThought('Kolay av: '+easy.type);return;}
   }
 }
 
@@ -691,14 +781,8 @@ function updateAgent(ag){
   if(ag.warmth<40&&hasItem(ag,'clothing')){
     ag.warmth=Math.min(100,ag.warmth+.3*SPD);
   }
-  // Auto-craft aggressively when materials available
-  if(Math.random()<.04*SPD){
-    const next=nextDesiredRecipe(ag);
-    if(next) tryCraft(ag,next);
-  }
-
-  // Autonomous behavior — works even if AI fails. If no goal, pick one based on needs.
-  if(!ag.goal&&Math.random()<.06*SPD){
+  // Autonomous behavior — picks goal based on needs, no random spam
+  if(!ag.goal&&Math.random()<.08*SPD){
     autoPickGoal(ag);
   }
 
@@ -802,9 +886,11 @@ function gatherFrom(ag,obj){
 function huntAnimal(ag,animal){
   const hasBow=hasItem(ag,'bow');
   const hasSpear=hasItem(ag,'spear');
+  const hasIronSpear=hasItem(ag,'iron_spear');
+  const hasSword=hasItem(ag,'iron_sword');
   const sleepBonus=animal.sleeping?3:1;
-  const dmg=(1+(hasBow?5:0)+(hasSpear?3:0))*SPD*sleepBonus;
-  animal.hp-=dmg;
+  const dmg=(1+(hasBow?5:0)+(hasSpear?3:0)+(hasIronSpear?5:0)+(hasSword?7:0))*SPD*sleepBonus;
+  animal.hp=Math.max(0,animal.hp-dmg);
   // Call tribe-mates to join the hunt
   if(ag.tribe&&Math.random()<.02*SPD){
     const t=tribes.find(t=>t.id===ag.tribe);
@@ -836,6 +922,7 @@ function huntAnimal(ag,animal){
 }
 
 function updateAnimal(ani){
+  if(ani.hp<=0){ani.hp=0;ani._dead=true;return;}
   if(ani.sleeping){
     ani.sleepTicks-=SPD;
     ani.vx*=.9;ani.vy*=.9;
@@ -872,7 +959,7 @@ function updateAnimal(ani){
       t.hp=Math.max(0,t.hp-ani.dmg*.025*SPD*armorRed*weaponDef);
       // Counter-attack when armed
       if(hasItem(t,'spear')||hasItem(t,'bow')){
-        ani.hp-=(hasItem(t,'bow')?2.5:1.5)*SPD;
+        ani.hp=Math.max(0,ani.hp-(hasItem(t,'bow')?2.5:1.5)*SPD);
       }
       t.injuries.push(ani.type+' ısırması');
       if(Math.random()<.04){addChatMsg(t.id,'Saldırı altındayım!','speak');setEmotion(t,'korkmuş',90);}
@@ -1185,6 +1272,7 @@ function loop(){
   for(let i=0;i<SPD;i++){
     agents.forEach(ag=>updateAgent(ag));
     animals.forEach(ani=>updateAnimal(ani));
+    animals=animals.filter(a=>!a._dead);
     updateObjects(); updateWeather(); decayEmotions(); TICK++;
   }
   draw(); sbTimer++;
