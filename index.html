@@ -308,23 +308,22 @@ function updateRel(ag,other,d){
 }
 
 const RECIPES={
-  stick:     {tier:0,n:{wood:1},g:'🪵Sopa',item:'stick_tool'},
-  stone_axe: {tier:0,n:{stick_tool:1,stone:2},g:'🪓Taş Balta',item:'stone_axe',fx:{gatherWood:2}},
-  spear:     {tier:0,n:{stick_tool:1,stone:1},g:'🗡️Mızrak',item:'spear',fx:{hunt:1}},
+  spear:     {tier:0,n:{wood:2,stone:1},g:'🗡️Mızrak',item:'spear',fx:{hunt:1}},
+  stone_axe: {tier:0,n:{wood:1,stone:2},g:'🪓Taş Balta',item:'stone_axe',fx:{gatherWood:2}},
   basket:    {tier:0,n:{fiber:3},g:'🧺Sepet',item:'basket',fx:{carry:1}},
-  campfire:  {tier:1,n:{wood:3,stone:2},need:['stone_axe'],g:'🔥Kamp Ateşi',item:null,fx:{place:'campfire'}},
-  bow:       {tier:1,n:{stick_tool:2,fiber:3},need:['stone_axe'],g:'🏹Yay',item:'bow',fx:{hunt:2}},
-  arrow:     {tier:1,n:{stick_tool:1,stone:1},need:['bow'],g:'🎯Ok',item:'arrow'},
-  medicine:  {tier:1,n:{mushroom:1,berry:1,fiber:1},g:'💊İlaç',item:'medicine',fx:{heal:40}},
+  campfire:  {tier:1,n:{wood:3,stone:2},g:'🔥Kamp Ateşi',item:null,fx:{place:'campfire'}},
+  bow:       {tier:1,n:{wood:2,fiber:3},need:['stone_axe'],g:'🏹Yay',item:'bow',fx:{hunt:2}},
+  arrow:     {tier:1,n:{wood:1,stone:1},need:['bow'],g:'🎯Ok',item:'arrow'},
+  medicine:  {tier:1,n:{mushroom:1,berry:1},g:'💊İlaç',item:'medicine',fx:{heal:40}},
   clothing:  {tier:1,n:{fiber:5},g:'🧥Giysi',item:'clothing',fx:{warmth:40}},
-  tent:      {tier:2,n:{wood:5,fiber:5},need:['campfire'],g:'⛺Çadır',item:null,fx:{place:'tent'}},
+  tent:      {tier:2,n:{wood:5,fiber:3},need:['campfire'],g:'⛺Çadır',item:null,fx:{place:'tent'}},
   farm_plot: {tier:2,n:{wood:3,stone:2},need:['stone_axe'],g:'🌽Tarla',item:null,fx:{place:'crops'}},
   wall:      {tier:2,n:{stone:4},need:['campfire'],g:'🧱Duvar',item:null,fx:{place:'wall'}},
   storage:   {tier:2,n:{wood:6},need:['stone_axe'],g:'📦Depo',item:null,fx:{place:'storage'}},
-  trap:      {tier:2,n:{wood:2,stone:1,fiber:2},need:['stone_axe'],g:'🪤Tuzak',item:null,fx:{place:'trap'}},
-  house:     {tier:3,n:{wood:10,stone:6},need:['tent','wall'],g:'🏠Ev',item:null,fx:{place:'house'}},
+  trap:      {tier:2,n:{wood:2,stone:1,fiber:1},need:['stone_axe'],g:'🪤Tuzak',item:null,fx:{place:'trap'}},
+  house:     {tier:3,n:{wood:8,stone:5},need:['tent','wall'],g:'🏠Ev',item:null,fx:{place:'house'}},
   armor:     {tier:3,n:{iron:3,fiber:4},need:['clothing'],g:'🛡️Zırh',item:'armor',fx:{defense:1}},
-  iron_axe:  {tier:3,n:{stick_tool:1,iron:2},need:['stone_axe'],g:'⛏️Demir Balta',item:'iron_axe',fx:{gatherWood:3,gatherStone:2}},
+  iron_axe:  {tier:3,n:{wood:1,iron:2},need:['stone_axe'],g:'⛏️Demir Balta',item:'iron_axe',fx:{gatherWood:3,gatherStone:2}},
 };
 
 function hasItem(ag,item){return ag.craftedItems.some(c=>c===item)}
@@ -364,6 +363,7 @@ function tryCraft(ag,key){
   }
   ag.techTier=Math.max(ag.techTier,r.tier);
   setEmotion(ag,'mutlu',85);
+  addFloat(ag.x,ag.y-22,'🔨 '+r.g,'#fbbf24');
   agents.filter(b=>b.id!==ag.id&&dist(ag,b)<200&&b.alive).forEach(b=>updateRel(b,ag,{love:1,trust:1}));
   return true;
 }
@@ -420,23 +420,22 @@ Uzak ajanlar: ${farAgs}
 
 ŞU AN YAPABİLECEĞIN CRAFT'LAR: ${canStr}
 
-TÜM TARİFLER:
-- stick(wood:1) → sopa
-- stone_axe(stick_tool:1,stone:2) → balta
-- spear(stick_tool:1,stone:1) → mızrak
+TÜM TARİFLER (basit!):
+- spear(wood:2,stone:1) → MIZRAK (savun/saldır/avlan)
+- stone_axe(wood:1,stone:2) → balta (odun toplamayı 2x hızlandırır)
 - basket(fiber:3)
-- campfire(wood:3,stone:2)[stone_axe gerekli]
-- bow(stick_tool:2,fiber:3)[stone_axe]
-- medicine(mushroom:1,berry:1,fiber:1)
-- clothing(fiber:5)
-- tent(wood:5,fiber:5)[campfire]
+- campfire(wood:3,stone:2) → kamp ateşi
+- bow(wood:2,fiber:3)[stone_axe]
+- medicine(mushroom:1,berry:1) → ilaç (HP+40)
+- clothing(fiber:5) → giysi
+- tent(wood:5,fiber:3)[campfire]
 - farm_plot(wood:3,stone:2)[stone_axe]
 - wall(stone:4)[campfire]
 - storage(wood:6)[stone_axe]
-- trap(wood:2,stone:1,fiber:2)[stone_axe]
-- house(wood:10,stone:6)[tent,wall]
+- trap(wood:2,stone:1,fiber:1)[stone_axe]
+- house(wood:8,stone:5)[tent,wall]
 - armor(iron:3,fiber:4)[clothing]
-- iron_axe(stick_tool:1,iron:2)[stone_axe]
+- iron_axe(wood:1,iron:2)[stone_axe]
 
 EYLEMLER: gather(tree/stone/fiber_plant/berry/mushroom/lake/pond/iron/beehive), hunt(rabbit/deer/wolf/bear/fish), farm, craft(tarif), rest, sleep, socialize, befriend(ajan), attack(ajan), explore, heal, hide_in_cave, form_tribe(ajan), flee
 
@@ -467,24 +466,71 @@ SADECE JSON:
 }
 
 function neededResource(ag){
-  if(!hasItem(ag,'stick_tool')&&(ag.inventory.wood||0)<1) return 'tree';
-  if(!hasItem(ag,'stone_axe')&&(ag.inventory.stone||0)<2) return 'stone';
-  if(!hasItem(ag,'spear')&&(ag.inventory.stone||0)<1) return 'stone';
-  if((ag.inventory.fiber||0)<5) return 'fiber_plant';
-  if((ag.inventory.wood||0)<6) return 'tree';
-  if((ag.inventory.stone||0)<4) return 'stone';
+  if(!hasItem(ag,'spear')){
+    if((ag.inventory.wood||0)<2) return 'tree';
+    if((ag.inventory.stone||0)<1) return 'stone';
+  }
+  if(!hasItem(ag,'stone_axe')){
+    if((ag.inventory.wood||0)<1) return 'tree';
+    if((ag.inventory.stone||0)<2) return 'stone';
+  }
+  if((ag.inventory.wood||0)<3) return 'tree';
+  if((ag.inventory.stone||0)<2) return 'stone';
+  if((ag.inventory.fiber||0)<3) return 'fiber_plant';
   if(ag.techTier>=2&&(ag.inventory.iron||0)<2) return 'iron';
   return 'tree';
 }
+
+// Autonomous goal selection — drives agents even if AI is silent
+function autoPickGoal(ag){
+  // 1. Critical needs first
+  if(ag.thirst<35){
+    const w=objects.filter(o=>['lake','pond'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(w){ag.goal={type:'obj',ref:w};ag.state='gather';ag.goalLabel='su';return;}
+  }
+  if(ag.hunger<40){
+    // try inventory first (handled elsewhere), then forage
+    const f=objects.filter(o=>['berry','mushroom','farm','crops','beehive'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(f){ag.goal={type:'obj',ref:f};ag.state='gather';ag.goalLabel='yemek';return;}
+  }
+  // 2. Try to craft something useful
+  const next=nextDesiredRecipe(ag);
+  if(next){tryCraft(ag,next);return;}
+  // 3. Gather what we need
+  const need=neededResource(ag);
+  const o=objects.filter(o=>o.type===need&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+  if(o){ag.goal={type:'obj',ref:o};ag.state='gather';ag.goalLabel='topl:'+need;return;}
+  // 4. Pack hunting — join tribe-mate's hunt
+  if(ag.tribe){
+    const t=tribes.find(t=>t.id===ag.tribe);
+    if(t){
+      const mate=agents.find(a=>t.members.includes(a.id)&&a.id!==ag.id&&a.alive&&a.goal&&a.goal.type==='animal'&&a.goal.ref&&a.goal.ref.hp>0);
+      if(mate){ag.goal={type:'animal',ref:mate.goal.ref};ag.state='hunt';ag.goalLabel='sürü av:'+mate.goal.ref.type;return;}
+    }
+  }
+  // 5. Hunt easy prey if armed
+  if(hasItem(ag,'spear')||hasItem(ag,'bow')){
+    const easy=animals.filter(a=>a.hp>0&&(a.sleeping||(!a.agg&&a.stamina<a.maxStam*.4))).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(easy&&dist(ag,easy)<350){ag.goal={type:'animal',ref:easy};ag.state='hunt';ag.goalLabel='av:'+easy.type;return;}
+  }
+}
+
+// Floating text effect for actions (eat, drink, etc.)
+const floats=[];
+function addFloat(x,y,text,color){floats.push({x,y,text,color,life:60,vy:-.6});}
 
 function applyDecision(ag,action,target,craftItem){
   ag.state=action; ag.stateTimer=70+Math.floor(Math.random()*70);
   const t=(target||'').toLowerCase();
   if(action==='gather'){
     let o=objects.filter(o=>o.type===t&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
-    if(!o||dist(ag,o)>400){
+    if(!o){
       const need=neededResource(ag);
       o=objects.filter(o=>o.type===need&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    }
+    if(!o){
+      // last resort: any harvestable resource
+      o=objects.filter(o=>o.res&&!['mountain','hill'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
     }
     ag.goal=o?{type:'obj',ref:o}:{type:'wander'}; ag.goalLabel='topl:'+(o?o.type:'?');
   } else if(action==='hunt'){
@@ -611,18 +657,26 @@ function updateAgent(ag){
   }
 
   // Auto-use inventory items
-  // Eat from meat/honey stash when hungry
-  if(ag.hunger<50&&(ag.inventory.meat||0)>=1){
+  if(ag.hunger<55&&(ag.inventory.meat||0)>=1){
     const eat=Math.min(2*SPD,ag.inventory.meat);
     ag.inventory.meat-=eat; ag.hunger=Math.min(100,ag.hunger+eat*3);
+    if(Math.random()<.04*SPD) addFloat(ag.x,ag.y-22,'🍖 yiyor','#86efac');
   }
-  if(ag.hunger<50&&(ag.inventory.honey||0)>=1){
+  if(ag.hunger<55&&(ag.inventory.honey||0)>=1){
     const eat=Math.min(1.5*SPD,ag.inventory.honey);
     ag.inventory.honey-=eat; ag.hunger=Math.min(100,ag.hunger+eat*2.5);
+    if(Math.random()<.04*SPD) addFloat(ag.x,ag.y-22,'🍯 yiyor','#fbbf24');
   }
-  if(ag.hunger<60&&(ag.inventory.food||0)>=1){
+  if(ag.hunger<65&&(ag.inventory.food||0)>=1){
     const eat=Math.min(2*SPD,ag.inventory.food);
     ag.inventory.food-=eat; ag.hunger=Math.min(100,ag.hunger+eat*2);
+    if(Math.random()<.04*SPD) addFloat(ag.x,ag.y-22,'🫐 yiyor','#86efac');
+  }
+  // Drink from water inventory
+  if(ag.thirst<60&&(ag.inventory.water||0)>=1){
+    const drink=Math.min(2*SPD,ag.inventory.water);
+    ag.inventory.water-=drink; ag.thirst=Math.min(100,ag.thirst+drink*3);
+    if(Math.random()<.04*SPD) addFloat(ag.x,ag.y-22,'💧 içiyor','#7dd3fc');
   }
   // Auto-heal with medicine when HP critical
   if(ag.hp<50&&hasItem(ag,'medicine')){
@@ -631,14 +685,21 @@ function updateAgent(ag){
     const i=ag.craftedItems.indexOf('medicine');if(i>=0)ag.craftedItems.splice(i,1);
     const j=ag.craftedItems.findIndex(c=>c.includes('İlaç'));if(j>=0)ag.craftedItems.splice(j,1);
     addLog(ag.id,'💊 İlaç kullandı');setEmotion(ag,'umutlu',75);
+    addFloat(ag.x,ag.y-22,'💊 +40 HP','#86efac');
   }
   // Auto-wear clothing for warmth
   if(ag.warmth<40&&hasItem(ag,'clothing')){
     ag.warmth=Math.min(100,ag.warmth+.3*SPD);
   }
-  if(Math.random()<.003*SPD){
+  // Auto-craft aggressively when materials available
+  if(Math.random()<.04*SPD){
     const next=nextDesiredRecipe(ag);
     if(next) tryCraft(ag,next);
+  }
+
+  // Autonomous behavior — works even if AI fails. If no goal, pick one based on needs.
+  if(!ag.goal&&Math.random()<.06*SPD){
+    autoPickGoal(ag);
   }
 
   ag.thinkTimer=Math.max(0,ag.thinkTimer-SPD);
@@ -723,13 +784,15 @@ function gatherFrom(ag,obj){
   const take=Math.min(1.4*SPD*(obj.type==='tree'?axe:1),obj.amount);
   obj.amount=Math.max(0,obj.amount-take);
   const mat=obj.res;
+  const prev=Math.floor(ag.inventory[mat]||0);
   ag.inventory[mat]=(ag.inventory[mat]||0)+take;
+  const now=Math.floor(ag.inventory[mat]);
+  if(now>prev&&Math.random()<.3) addFloat(ag.x,ag.y-22,'+'+obj.emoji+' '+mat,'#86efac');
   if(mat==='wood'){
-    ag.inventory.stick_tool=(ag.inventory.stick_tool||0)+take*.15;
-    ag.inventory.fiber=(ag.inventory.fiber||0)+take*.2;
+    ag.inventory.fiber=(ag.inventory.fiber||0)+take*.15;
   }
   if(['food','honey'].includes(mat)){ag.hunger=Math.min(100,ag.hunger+take*2.5);setEmotion(ag,'mutlu',50);}
-  if(mat==='water'){ag.thirst=Math.min(100,ag.thirst+take*3);setEmotion(ag,'mutlu',45);}
+  if(mat==='water'){ag.thirst=Math.min(100,ag.thirst+take*3);setEmotion(ag,'mutlu',45);if(Math.random()<.03*SPD)addFloat(ag.x,ag.y-22,'💧 içiyor','#7dd3fc');}
   if(mat==='warmth') ag.warmth=Math.min(100,ag.warmth+take*1.4);
   if(mat==='shelter'){ag.energy=Math.min(100,ag.energy+take*.4);ag.warmth=Math.min(100,ag.warmth+take*.2);}
   if(obj.amount<=3){addLog(ag.id,obj.emoji+' '+obj.type+' tükendi');ag.goal=null;}
@@ -742,6 +805,19 @@ function huntAnimal(ag,animal){
   const sleepBonus=animal.sleeping?3:1;
   const dmg=(1+(hasBow?5:0)+(hasSpear?3:0))*SPD*sleepBonus;
   animal.hp-=dmg;
+  // Call tribe-mates to join the hunt
+  if(ag.tribe&&Math.random()<.02*SPD){
+    const t=tribes.find(t=>t.id===ag.tribe);
+    if(t){
+      agents.forEach(b=>{
+        if(b.id===ag.id||!b.alive||!t.members.includes(b.id)) return;
+        if(dist(b,ag)<350&&(!b.goal||b.goal.type==='wander')&&(hasItem(b,'spear')||hasItem(b,'bow')||animal.flee)){
+          b.goal={type:'animal',ref:animal};b.state='hunt';b.goalLabel='sürü av:'+animal.type;
+          if(Math.random()<.3) addChatMsg(b.id,'Geliyorum! Birlikte avlayalım!','speak');
+        }
+      });
+    }
+  }
   if(animal.sleeping){animal.sleeping=false;animal.sleepTicks=0;}
   if(!animal.flee&&Math.random()<.12){
     const armorRed=hasItem(ag,'armor')?.5:1;
@@ -949,6 +1025,25 @@ function draw(){
     ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(ag.x-bw/2,ag.y+ag.size+4,bw,3);
     const hp=ag.hp/ag.maxHp;
     ctx.fillStyle=hp>.6?'#86efac':hp>.3?'#fbbf24':'#f87171';ctx.fillRect(ag.x-bw/2,ag.y+ag.size+4,bw*hp,3);
+    // Show held item — priority based on current state
+    let held='';
+    if(ag.state==='gather'&&ag.goal?.ref){
+      if(ag.goal.ref.type==='tree') held=hasItem(ag,'iron_axe')?'⛏️':hasItem(ag,'stone_axe')?'🪓':'✊';
+      else if(ag.goal.ref.type==='stone'||ag.goal.ref.type==='iron') held=hasItem(ag,'stone_axe')?'🪓':'✊';
+      else if(['lake','pond'].includes(ag.goal.ref.type)) held='🥤';
+      else if(['berry','mushroom','farm','crops','beehive'].includes(ag.goal.ref.type)) held='🧺';
+      else held='✋';
+    } else if(ag.state==='hunt'||ag.state==='attack') {
+      held=hasItem(ag,'bow')?'🏹':hasItem(ag,'spear')?'🗡️':'✊';
+    } else if(ag.state==='craft') held='🔨';
+    else if(ag.state==='heal') held='💊';
+    else if(ag.state==='socialize'||ag.state==='befriend') held='💬';
+    else if(ag.state==='flee'||ag.state==='hide') held='💨';
+    if(held){
+      ctx.save();ctx.font='13px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(held,ag.x+ag.size+6,ag.y+2);
+      ctx.restore();
+    }
     if(ag.goalLabel){ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='7px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(ag.goalLabel,ag.x,ag.y+ag.size+13);}
     if(selected===ag.id){
       agents.forEach(b=>{
@@ -970,6 +1065,18 @@ function draw(){
     ctx.setLineDash([]);ctx.restore();
   });
 
+  // Floating action text
+  for(let i=floats.length-1;i>=0;i--){
+    const f=floats[i];
+    f.y+=f.vy; f.life-=1;
+    if(f.life<=0){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.min(1,f.life/30);
+    ctx.fillStyle=f.color;ctx.font='bold 10px JetBrains Mono,monospace';ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,.6)';ctx.lineWidth=2.5;ctx.strokeText(f.text,f.x,f.y);
+    ctx.fillText(f.text,f.x,f.y);
+    ctx.restore();
+  }
+
   const h2=Math.floor(TICK/60/60)%24,m2=Math.floor(TICK/60)%60,d2=1+Math.floor(TICK/60/60/24);
   const dayNight=isNight?'🌙 Gece':(isDusk?'🌆 Alacakaranlık':'☀️ Gündüz');
   document.getElementById('wclock').textContent=`Gün ${d2} · ${String(h2).padStart(2,'0')}:${String(m2).padStart(2,'0')} · ${dayNight} · ${weather.icon}`;
@@ -982,7 +1089,7 @@ function renderSidebar(){
     const fn=Math.round(ag.hunger),wn=Math.round(ag.thirst),en=Math.round(ag.energy),sn=Math.round(ag.social),hp=Math.round(ag.hp),wm=Math.round(ag.warmth);
     const c=(v,lo,hi)=>v<lo?'#f87171':v<hi?'#fbbf24':'#86efac';
     const inv=Object.entries(ag.inventory).filter(([,v])=>v>.5).map(([k,v])=>k+':'+Math.round(v)).join(' ');
-    const crafted=[...new Set(ag.craftedItems.filter(c=>c.length>2&&!['stick_tool','spear','bow','medicine','clothing','arrow','armor','iron_axe','stone_axe','basket'].includes(c)))].slice(-5).join(' ');
+    const crafted=[...new Set(ag.craftedItems.filter(c=>c.length>2&&!['spear','bow','medicine','clothing','arrow','armor','iron_axe','stone_axe','basket'].includes(c)))].slice(-5).join(' ');
     const emos=Object.entries(ag.emotions).filter(([,v])=>v>28).slice(0,4).map(([k,v])=>`<span class="chip">${k} ${Math.round(v)}</span>`).join('');
     const rel=Object.entries(ag.rel).slice(0,4).map(([id,r])=>{const b=agents.find(a=>a.id==id);return b&&b.alive?`<span class="chip" style="font-size:6px">${b.name} ❤${Math.round(r.love)} 🤝${Math.round(r.trust)}${r.anger>20?' 😠'+Math.round(r.anger):''}</span>`:''}).join('');
     const illB=ag.illness?`<span class="badge" style="background:rgba(248,113,113,.15);color:#f87171">🤒 ${ag.illness}</span>`:'';
@@ -1093,7 +1200,12 @@ addChatMsg(0,'Yeni bir dünyada uyanıyorum... Önce sopa ve taş toplamalıyım
 addChatMsg(1,'Başkaları görüyorum. Belki bir kabile kurabiliriz.','think');
 addChatMsg(2,'Tarım için araç gerek. Önce taş balta yapmalıyım.','think');
 renderSidebar();
-setTimeout(()=>{agents.forEach((ag,i)=>setTimeout(()=>agentThink(ag),i*1500))},1500);
+// Give each agent a small starter inventory so they're not helpless on day 1
+agents.forEach(ag=>{ag.inventory.wood=2;ag.inventory.stone=1;ag.inventory.fiber=2;});
+// Stagger thinks more tightly so all 5 agents get moving
+setTimeout(()=>{agents.forEach((ag,i)=>setTimeout(()=>agentThink(ag),i*900))},800);
+// Also nudge each agent with an autonomous goal at start
+setTimeout(()=>{agents.forEach(ag=>autoPickGoal(ag))},400);
 loop();
 </script>
 </body>
