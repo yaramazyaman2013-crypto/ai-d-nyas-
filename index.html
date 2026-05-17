@@ -3,790 +3,1037 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Dünyası — Özgür Sim</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>AI Dünyası v4 — Kabileler</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080c14;--s1:#0f1623;--s2:#161f30;--s3:#1c2840;
-  --b1:#1e2d45;--b2:#2a3f5f;--b3:#3a5580;
-  --t1:#e8f0fe;--t2:#8eadd4;--t3:#4a6a8a;
-  --acc:#4ade80;--acc2:#60a5fa;--acc3:#f59e0b;--acc4:#f472b6;--acc5:#a78bfa;
-  --red:#f87171;--ora:#fb923c;
+  --bg:#07090f;--s1:#0d1119;--s2:#121a26;--s3:#18222f;
+  --b1:#1a2840;--b2:#243650;--t1:#dce8f5;--t2:#7a9ab8;--t3:#3a5470;
+  --acc:#5eead4;--acc2:#7dd3fc;--acc3:#fbbf24;--red:#f87171;--grn:#86efac;
 }
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-family:'JetBrains Mono',monospace}
-#app{display:grid;grid-template-columns:1fr 320px;height:100vh}
-
-/* WORLD */
-#world{position:relative;overflow:hidden}
+#app{display:grid;grid-template-columns:1fr 300px;grid-template-rows:1fr 220px;height:100vh}
+#worldWrap{position:relative;overflow:hidden;grid-row:1;grid-column:1}
+#sidebar{background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;grid-row:1/3;grid-column:2;overflow:hidden}
+#chatPanel{background:var(--s1);border-top:1px solid var(--b1);grid-row:2;grid-column:1;display:flex;flex-direction:column;overflow:hidden}
 #worldCanvas{position:absolute;inset:0;width:100%;height:100%}
-#topBar{position:absolute;top:0;left:0;right:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;z-index:20;background:linear-gradient(to bottom,rgba(8,12,20,.95),transparent)}
-.worldTitle{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--t1)}
-.worldTitle span{color:var(--acc)}
-#worldTime{font-size:9px;color:var(--t3);margin-top:1px}
-#speedRow{display:flex;gap:5px;align-items:center}
-.spBtn{padding:4px 10px;background:var(--s2);border:1px solid var(--b1);color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:9px;border-radius:4px;cursor:pointer;transition:all .2s}
+#cursorEl{position:fixed;pointer-events:none;z-index:9999;font-size:18px;transform:translate(-50%,-50%);display:none}
+#disasterFlash{position:absolute;inset:0;pointer-events:none;z-index:100;opacity:0;transition:opacity .4s}
+
+#topBar{position:absolute;top:0;left:0;right:0;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;z-index:20;background:linear-gradient(to bottom,rgba(7,9,15,.97),transparent)}
+.wtitle{font-family:'Syne',sans-serif;font-size:13px;font-weight:800}
+.wtitle span{color:var(--acc)}
+#wclock{font-size:9px;color:var(--acc3);margin-top:1px;font-weight:600}
+#wInfo{font-size:9px;color:var(--t2);display:flex;align-items:center;gap:6px}
+#spRow{display:flex;gap:3px}
+.spBtn{padding:3px 8px;background:var(--s2);border:1px solid var(--b1);color:var(--t3);font-size:8px;border-radius:4px;cursor:pointer;transition:all .15s;font-family:'JetBrains Mono',monospace}
 .spBtn:hover,.spBtn.on{border-color:var(--acc);color:var(--acc)}
 
-/* DIALOGUE POPUP */
-#dialogueBox{position:absolute;bottom:16px;left:16px;right:16px;z-index:30;pointer-events:none;display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:hidden}
-.dialogBubble{background:rgba(15,22,35,.92);border:1px solid var(--b2);border-radius:10px;padding:8px 12px;animation:slideUp .3s ease;max-width:85%}
-.dialogBubble.think{border-color:var(--acc5);opacity:.85;font-style:italic}
-.dialogBubble.speak{border-color:var(--acc2)}
-.dialogBubble .dName{font-size:9px;font-weight:700;margin-bottom:3px}
-.dialogBubble .dText{font-size:10px;color:var(--t2);line-height:1.5}
-@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+#toolBar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:20;display:flex;gap:4px;background:rgba(13,17,25,.93);border:1px solid var(--b1);border-radius:10px;padding:5px 8px;flex-wrap:wrap;max-width:92%}
+.tBtn{padding:4px 9px;background:var(--s2);border:1px solid var(--b1);color:var(--t2);font-size:8px;border-radius:5px;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.tBtn:hover{border-color:var(--acc3);color:var(--acc3)}
+.tBtn.on{border-color:var(--acc3);color:var(--acc3);background:rgba(251,191,36,.09)}
+.tBtn.dng:hover,.tBtn.dng.on{border-color:var(--red);color:var(--red)}
 
-/* SIDEBAR */
-#sidebar{background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden}
-#tabs{display:flex;border-bottom:1px solid var(--b1)}
-.tab{flex:1;padding:10px 6px;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:center;cursor:pointer;color:var(--t3);transition:all .2s;border-bottom:2px solid transparent}
-.tab:hover{color:var(--t2)}
-.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
-.tabPane{flex:1;overflow-y:auto;padding:10px;scrollbar-width:thin;scrollbar-color:var(--b1) transparent;display:none}
-.tabPane.on{display:block}
+#stabs{display:flex;border-bottom:1px solid var(--b1)}
+.stab{flex:1;padding:7px 3px;font-size:7px;letter-spacing:1px;text-transform:uppercase;text-align:center;cursor:pointer;color:var(--t3);border-bottom:2px solid transparent;transition:all .15s}
+.stab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.spane{flex:1;overflow-y:auto;display:none;scrollbar-width:thin;scrollbar-color:var(--b1) transparent}
+.spane.on{display:block}
 
-/* AGENT CARDS */
-.aCard{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:10px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
+.aCard{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:9px;margin:5px;cursor:pointer;transition:border-color .15s}
 .aCard:hover,.aCard.sel{border-color:var(--acc2)}
-.aTop{display:flex;align-items:center;gap:9px;margin-bottom:8px}
-.aAva{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.aName{font-family:'Syne',sans-serif;font-size:12px;font-weight:700}
-.aState{font-size:8px;color:var(--t3);margin-top:2px;line-height:1.4}
-.needGrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:7px}
-.needItem{font-size:8px;color:var(--t3);margin-bottom:2px}
-.bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
+.aTop{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.aAva{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.aName{font-family:'Syne',sans-serif;font-size:11px;font-weight:700}
+.aMeta{font-size:7px;color:var(--t3);margin-top:1px;line-height:1.5}
+.ng{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:4px}
+.nl{font-size:7px;color:var(--t3);margin-bottom:1px}
+.bar{height:3px;border-radius:2px;background:rgba(255,255,255,.05);overflow:hidden}
 .bf{height:100%;border-radius:2px;transition:width .5s}
-.inventory{margin-top:6px;border-top:1px solid var(--b1);padding-top:6px}
-.invTitle{font-size:8px;color:var(--t3);margin-bottom:4px;letter-spacing:1px}
-.invItems{display:flex;flex-wrap:wrap;gap:4px}
-.invItem{background:var(--s3);border:1px solid var(--b1);border-radius:4px;padding:2px 6px;font-size:9px;color:var(--t2)}
+.chips{display:flex;flex-wrap:wrap;gap:2px;margin-top:3px}
+.chip{background:var(--s3);border:1px solid var(--b1);border-radius:3px;padding:1px 4px;font-size:7px;color:var(--t2)}
+.badge{border-radius:3px;padding:1px 4px;font-size:7px;font-weight:600}
+.techBar{display:flex;gap:2px;margin-top:3px}
+.techPip{flex:1;height:4px;border-radius:2px;background:var(--s3);border:1px solid var(--b1)}
+.techPip.on{background:var(--acc3);border-color:var(--acc3)}
 
-/* WORLD LOG */
-.logEntry{font-size:9px;color:var(--t3);padding:4px 0;border-bottom:1px solid rgba(30,45,69,.4);line-height:1.4}
-.logEntry .lName{font-weight:700}
-.logEntry .lTime{color:var(--b3);float:right}
+.le{font-size:8px;color:var(--t3);padding:3px 8px;border-bottom:1px solid rgba(26,40,64,.4);line-height:1.4}
+.le .ln{font-weight:700}
+.le .lt{color:var(--b2);float:right}
 
-/* CONTROLS */
-#ctrlPane{padding:10px;border-top:1px solid var(--b1)}
-.ctrlSec{font-size:8px;color:var(--t3);margin-bottom:6px;letter-spacing:2px;text-transform:uppercase}
-.cBtn{width:100%;padding:7px 10px;background:var(--s2);border:1px solid var(--b1);color:var(--t2);font-family:'JetBrains Mono',monospace;font-size:9px;border-radius:6px;cursor:pointer;margin-bottom:4px;text-align:left;transition:all .2s}
-.cBtn:hover{border-color:var(--acc);color:var(--acc)}
-.cBtn.dng:hover{border-color:var(--red);color:var(--red)}
-
-/* MIND PANE */
-.mindCard{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:10px;margin-bottom:8px}
-.mindName{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;margin-bottom:6px}
-.mindThought{font-size:9px;color:var(--t2);line-height:1.6;font-style:italic;border-left:2px solid var(--acc5);padding-left:8px;margin-bottom:6px}
-.mindChat{font-size:9px;color:var(--t1);line-height:1.6;border-left:2px solid var(--acc2);padding-left:8px}
-.mindLoading{font-size:9px;color:var(--t3);animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
-
-/* NATURE LEGEND */
-#legend{position:absolute;top:50px;right:8px;z-index:15;background:rgba(15,22,35,.85);border:1px solid var(--b1);border-radius:8px;padding:8px;font-size:8px;color:var(--t3)}
-#legend div{margin-bottom:2px}
+#chatHdr{padding:5px 10px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#chatTitle{font-size:8px;color:var(--acc);letter-spacing:2px;text-transform:uppercase;font-weight:700}
+#chatScroll{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--b1) transparent}
+.cm{border-radius:7px;padding:5px 9px;max-width:70%}
+.cm .ca{font-size:7px;font-weight:700;margin-bottom:2px}
+.cm .ct{font-size:9px;line-height:1.5}
+.cm .ctime{font-size:7px;opacity:.4;margin-top:1px}
+.cm.think{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.18);align-self:flex-start;font-style:italic}
+.cm.speak{border:1px solid;align-self:flex-end}
 </style>
 </head>
 <body>
 <div id="app">
-<div id="world">
-  <canvas id="worldCanvas"></canvas>
-  <div id="topBar">
-    <div>
-      <div class="worldTitle">🌍 AI Dünyası — <span>Özgür Evren</span></div>
-      <div id="worldTime">Gün 1 · 00:00</div>
+  <div id="worldWrap">
+    <canvas id="worldCanvas"></canvas>
+    <div id="disasterFlash"></div>
+    <div id="topBar">
+      <div><div class="wtitle">🌍 AI Dünyası <span>v4 — Kabileler</span></div><div id="wclock">Gün 1 · 06:00</div></div>
+      <div id="wInfo"><span id="wIcon">☀️</span><span id="wName">Güneşli · 22°C</span></div>
+      <div id="spRow">
+        <button class="spBtn on" onclick="setSpd(1)" id="s1">1×</button>
+        <button class="spBtn" onclick="setSpd(3)" id="s3">3×</button>
+        <button class="spBtn" onclick="setSpd(8)" id="s8">8×</button>
+      </div>
     </div>
-    <div id="speedRow">
-      <span style="font-size:9px;color:var(--t3)">Hız</span>
-      <button class="spBtn on" onclick="setSpd(1)" id="s1">1×</button>
-      <button class="spBtn" onclick="setSpd(2)" id="s2">2×</button>
-      <button class="spBtn" onclick="setSpd(5)" id="s5">5×</button>
+    <div id="toolBar"></div>
+  </div>
+  <div id="sidebar">
+    <div id="stabs">
+      <div class="stab on" onclick="showTab('agents')">Ajanlar</div>
+      <div class="stab" onclick="showTab('tribes')">Kabileler</div>
+      <div class="stab" onclick="showTab('log')">Günlük</div>
     </div>
+    <div class="spane on" id="agents" style="padding:0"></div>
+    <div class="spane" id="tribes" style="padding:6px"></div>
+    <div class="spane" id="log" style="padding:0"></div>
   </div>
-  <div id="legend">
-    <div>🌳 Ağaç · 🍄 Mantar · 🪨 Taş</div>
-    <div>💧 Göl · 🌾 Tarla · 🔥 Ateş</div>
-    <div>🐺 Kurt · 🐇 Tavşan · 🦌 Geyik</div>
-    <div>🐟 Balık · 🐝 Arı · 🦅 Kartal</div>
-  </div>
-  <div id="dialogueBox"></div>
-</div>
-<div id="sidebar">
-  <div id="tabs">
-    <div class="tab on" onclick="showTab('agents')">Ajanlar</div>
-    <div class="tab" onclick="showTab('mind')">Zihin</div>
-    <div class="tab" onclick="showTab('log')">Günlük</div>
-  </div>
-  <div class="tabPane on" id="agents"></div>
-  <div class="tabPane" id="mind"></div>
-  <div class="tabPane" id="log"></div>
-  <div id="ctrlPane">
-    <div class="ctrlSec">Doğa Müdahaleleri</div>
-    <button class="cBtn" onclick="spawnNature('tree')">🌳 Ağaç Dik</button>
-    <button class="cBtn" onclick="spawnNature('lake')">💧 Göl Oluştur</button>
-    <button class="cBtn" onclick="spawnNature('stone')">🪨 Taş Getir</button>
-    <button class="cBtn" onclick="spawnNature('animal_rabbit')">🐇 Tavşan Bırak</button>
-    <button class="cBtn" onclick="spawnNature('animal_deer')">🦌 Geyik Bırak</button>
-    <button class="cBtn dng" onclick="spawnNature('animal_wolf')">🐺 Kurt Bırak</button>
-    <button class="cBtn dng" onclick="spawnNature('disaster')">⚡ Yıldırım Düşür</button>
+  <div id="chatPanel">
+    <div id="chatHdr">
+      <span id="chatTitle">💬 Zihin & Diyalog — Gemini AI</span>
+      <span style="font-size:7px;color:var(--t3)">Yakın (200px): konuşabilir · Uzak: sadece düşünür</span>
+    </div>
+    <div id="chatScroll"></div>
   </div>
 </div>
-</div>
+<div id="cursorEl"></div>
 
 <script>
+const GEMINI_API_KEY = 'AIzaSyDByIbEt_3lou0XyCFvuW2GiXmtct3ieDA';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY;
+
 const canvas=document.getElementById('worldCanvas');
 const ctx=canvas.getContext('2d');
 let W=0,H=0,SPD=1,TICK=0;
+let activeTool='none';
 
-// ── AGENT DEFINITIONS ──────────────────────────────────────────────
-const ADEFS=[
-  {id:0,name:'NOVA',emoji:'🤖',color:'#60a5fa',dark:'#1e3a5f',personality:'meraklı ve teknoloji odaklı, alet yapmayı sever'},
-  {id:1,name:'ARIA',emoji:'🦾',color:'#f472b6',dark:'#4a1030',personality:'empatik ve sosyal, doğayı gözlemler'},
-  {id:2,name:'ZERO',emoji:'🧠',color:'#4ade80',dark:'#0f3320',personality:'stratejik ve analitik, kaynakları verimli kullanır'},
-  {id:3,name:'FLUX',emoji:'⚙️',color:'#f59e0b',dark:'#3d2000',personality:'yaratıcı ve pratik, her şeyi bir fırsata çevirir'},
-  {id:4,name:'VIBE',emoji:'✨',color:'#a78bfa',dark:'#2d1b69',personality:'sanatçı ruhlu ve felsefi, dünyayı farklı görür'},
+const WEATHERS=[
+  {name:'Güneşli',icon:'☀️',temp:24,rain:0,wind:.2,cold:false,hot:false},
+  {name:'Bulutlu',icon:'⛅',temp:18,rain:0,wind:.4,cold:false,hot:false},
+  {name:'Yağmurlu',icon:'🌧️',temp:14,rain:1.5,wind:.6,cold:false,hot:false},
+  {name:'Fırtınalı',icon:'⛈️',temp:11,rain:2.5,wind:1.2,cold:false,hot:false,disaster:'storm'},
+  {name:'Karlı',icon:'❄️',temp:-2,rain:0,wind:.5,cold:true,hot:false,disaster:'cold'},
+  {name:'Sisli',icon:'🌫️',temp:10,rain:0,wind:.1,cold:false,hot:false},
+  {name:'Sıcak Dalga',icon:'🔆',temp:39,rain:0,wind:.1,cold:false,hot:true,disaster:'heat'},
 ];
+let weather=WEATHERS[0], weatherTimer=2000;
+let rainPtcls=[], snowPtcls=[];
 
-// ── WORLD OBJECTS ──────────────────────────────────────────────────
-let agents=[], objects=[], animals=[], dialogues=[], logs=[], thinkResults={};
-let selected=-1;
-
-const OBJ_TYPES={
-  tree:{emoji:'🌳',size:18,resource:'wood',amount:80,regen:0.002},
-  mushroom:{emoji:'🍄',size:10,resource:'food',amount:40,regen:0.005},
-  stone:{emoji:'🪨',size:14,resource:'stone',amount:120,regen:0},
-  lake:{emoji:'💧',size:22,resource:'water',amount:200,regen:0.01},
-  field:{emoji:'🌾',size:16,resource:'food',amount:60,regen:0.008},
-  fire:{emoji:'🔥',size:14,resource:'warmth',amount:100,regen:0},
-  berry:{emoji:'🫐',size:8,resource:'food',amount:30,regen:0.01},
-  beehive:{emoji:'🐝',size:10,resource:'honey',amount:50,regen:0.003},
-};
-
-const ANIMAL_TYPES={
-  rabbit:{emoji:'🐇',speed:1.2,hp:15,food:25,flee:true,aggressive:false,size:9},
-  deer:{emoji:'🦌',speed:1.5,hp:40,food:60,flee:true,aggressive:false,size:13},
-  wolf:{emoji:'🐺',speed:1.8,hp:80,food:0,flee:false,aggressive:false,size:15},
-  fish:{emoji:'🐟',speed:0.8,hp:10,food:20,flee:true,aggressive:false,size:8},
-  eagle:{emoji:'🦅',speed:2.5,hp:30,food:40,flee:false,aggressive:false,size:12},
-};
-
-const CRAFT_RECIPES={
-  'spear':   {needs:{stick:1,stone:1}, gives:'🗡️ Mızrak', bonus:{hunt:+30, gather:+10}},
-  'basket':  {needs:{wood:2},           gives:'🧺 Sepet',  bonus:{carry:+20}},
-  'fire':    {needs:{wood:2,stone:1},   gives:'🔥 Ateş',   bonus:{warmth:+50,cook:true}},
-  'shelter': {needs:{wood:4,stone:2},   gives:'🏕️ Barınak',bonus:{rest:+40}},
-  'net':     {needs:{wood:1,fiber:2},   gives:'🕸️ Ağ',     bonus:{fish:+40}},
-  'medicine':{needs:{mushroom:1,berry:1},gives:'💊 İlaç',  bonus:{heal:+30}},
-  'trap':    {needs:{wood:2,stone:1},   gives:'🪤 Tuzak',  bonus:{passive_hunt:true}},
-};
-
-// ── INIT ──────────────────────────────────────────────────────────
-function resize(){
-  const el=document.getElementById('world');
-  W=el.clientWidth; H=el.clientHeight;
-  canvas.width=W; canvas.height=H;
+function updateWeather(){
+  weatherTimer-=SPD;
+  if(weatherTimer<=0){
+    const w=WEATHERS[Math.floor(Math.random()*WEATHERS.length)];
+    weather=w; weatherTimer=2500+Math.floor(Math.random()*3500);
+    document.getElementById('wIcon').textContent=weather.icon;
+    document.getElementById('wName').textContent=weather.name+' · '+weather.temp+'°C';
+    addLog(null,'🌤️ Hava: '+weather.name+' ('+weather.temp+'°C)');
+    if(weather.disaster) triggerDisaster(weather.disaster);
+  }
+  if(weather.rain>0&&Math.random()<.25*weather.rain*SPD)
+    rainPtcls.push({x:Math.random()*W,y:-5,vy:3.5+Math.random()*2,vx:weather.wind*3,life:70});
+  if(weather.cold&&Math.random()<.18*SPD)
+    snowPtcls.push({x:Math.random()*W,y:-5,vy:.8+Math.random()*.6,vx:(Math.random()-.5)*.5,life:220,sz:2+Math.random()*3});
+  rainPtcls=rainPtcls.filter(p=>{p.y+=p.vy*SPD;p.x+=p.vx*SPD;p.life-=SPD;return p.life>0&&p.y<H});
+  snowPtcls=snowPtcls.filter(p=>{p.y+=p.vy*SPD;p.x+=p.vx*SPD;p.life-=SPD;return p.life>0&&p.y<H});
 }
 
-function spawnObjects(){
+function triggerDisaster(type){
+  const df=document.getElementById('disasterFlash');
+  const cols={storm:'rgba(80,60,200,.35)',cold:'rgba(150,200,255,.25)',heat:'rgba(255,100,30,.25)',flood:'rgba(30,100,255,.25)'};
+  df.style.background=cols[type]||'rgba(255,0,0,.25)';
+  df.style.opacity='1'; setTimeout(()=>df.style.opacity='0',800);
+  if(type==='storm'){
+    agents.forEach(ag=>{if(!ag.alive) return;
+      if(Math.random()<.4){const d=6+Math.floor(Math.random()*12);ag.hp=Math.max(0,ag.hp-d);ag.injuries.push('yıldırım çarpması');addChatMsg(ag.id,'Yıldırım! Acı çekiyorum!','speak');setEmotion(ag,'korkmuş',90);}
+    });
+    addLog(null,'⛈️ Fırtına vurdu!');
+  }
+  if(type==='cold'){
+    agents.forEach(ag=>{if(!ag.alive) return; ag.warmth=Math.max(0,ag.warmth-25);if(ag.warmth<15&&!ag.illness){ag.illness='donma';ag.illnessTicks=700;}});
+    addLog(null,'❄️ Dondurucu soğuk!');
+  }
+  if(type==='heat'){
+    agents.forEach(ag=>{if(!ag.alive) return; ag.thirst=Math.max(0,ag.thirst-20);if(!ag.illness&&Math.random()<.4){ag.illness='sıcak çarpması';ag.illnessTicks=500;}});
+    objects.filter(o=>o.type==='lake').forEach(o=>o.amount=Math.max(0,o.amount*.5));
+    addLog(null,'🔥 Sıcak dalgası!');
+  }
+  if(type==='flood'){
+    objects.filter(o=>['farm','crops'].includes(o.type)).forEach(o=>o.amount=Math.max(0,o.amount*.15));
+    animals=animals.filter(a=>a.type!=='rabbit');
+    addLog(null,'🌊 Sel!');
+  }
+}
+
+const OBJ={
+  tree:     {emoji:'🌳',sz:20,res:'wood',max:100,regen:.003},
+  stone:    {emoji:'🪨',sz:14,res:'stone',max:80,regen:0},
+  lake:     {emoji:'💧',sz:26,res:'water',max:300,regen:.025},
+  farm:     {emoji:'🌾',sz:16,res:'food',max:100,regen:.012},
+  berry:    {emoji:'🫐',sz:10,res:'food',max:50,regen:.01},
+  mushroom: {emoji:'🍄',sz:9,res:'food',max:40,regen:.007},
+  beehive:  {emoji:'🐝',sz:10,res:'honey',max:60,regen:.004},
+  crops:    {emoji:'🌽',sz:14,res:'food',max:120,regen:.02},
+  mountain: {emoji:'⛰️',sz:34,res:'stone',max:999,regen:0,blocking:true},
+  hill:     {emoji:'🏔️',sz:24,res:'stone',max:200,regen:0},
+  pond:     {emoji:'🌊',sz:18,res:'water',max:120,regen:.015},
+  cave:     {emoji:'🕳️',sz:28,res:'shelter',max:500,regen:.002,shelter:true},
+  iron:     {emoji:'⛓️',sz:13,res:'iron',max:60,regen:0},
+  fiber_plant:{emoji:'🌿',sz:10,res:'fiber',max:40,regen:.012},
+  campfire: {emoji:'🔥',sz:16,res:'warmth',max:200,regen:-.015,built:true},
+  tent:     {emoji:'⛺',sz:18,res:'shelter',max:300,regen:0,built:true,shelter:true},
+  house:    {emoji:'🏠',sz:24,res:'shelter',max:800,regen:.001,built:true,shelter:true},
+  wall:     {emoji:'🧱',sz:14,res:null,max:200,regen:0,built:true,blocking:true},
+  storage:  {emoji:'📦',sz:16,res:null,max:400,regen:0,built:true,storage:true},
+  trap:     {emoji:'🪤',sz:12,res:null,max:50,regen:0,built:true,trap:true},
+};
+let objects=[];
+
+const ANIM={
+  rabbit:{emoji:'🐇',spd:1.4,hp:20,food:30,flee:true,agg:false,sz:9,dmg:0,stam:160},
+  deer:  {emoji:'🦌',spd:1.6,hp:50,food:70,flee:true,agg:false,sz:13,dmg:0,stam:220},
+  wolf:  {emoji:'🐺',spd:1.7,hp:100,food:0,flee:false,agg:true,sz:15,dmg:9,stam:200},
+  fish:  {emoji:'🐟',spd:.7,hp:10,food:20,flee:true,agg:false,sz:8,dmg:0,stam:120},
+  eagle: {emoji:'🦅',spd:2.2,hp:35,food:45,flee:false,agg:true,sz:12,dmg:6,stam:180},
+  bear:  {emoji:'🐻',spd:1.1,hp:150,food:90,flee:false,agg:true,sz:18,dmg:16,stam:240},
+};
+let animals=[];
+
+function uid(){return Math.random().toString(36).slice(2,9)}
+function dist(a,b){return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2)}
+
+function initObjects(){
   objects=[];
-  const counts={tree:18,stone:10,lake:5,field:8,mushroom:12,berry:10,beehive:4};
-  for(const [type,n] of Object.entries(counts)){
+  [[.08,.15],[.22,.07],[.82,.18],[.88,.68],[.12,.78],[.5,.09],[.62,.88],[.35,.5]].forEach(([rx,ry])=>{
+    objects.push({...OBJ.mountain,type:'mountain',x:rx*W,y:ry*H,amount:999,maxAmount:999,id:uid()});
+  });
+  [[.3,.3],[.7,.4],[.5,.7]].forEach(([rx,ry])=>{
+    objects.push({...OBJ.hill,type:'hill',x:rx*W,y:ry*H,amount:200,maxAmount:200,id:uid()});
+  });
+  [[.15,.22],[.85,.22],[.18,.72],[.78,.78]].forEach(([rx,ry])=>{
+    objects.push({...OBJ.cave,type:'cave',x:rx*W,y:ry*H,amount:500,maxAmount:500,id:uid()});
+  });
+  const counts={tree:24,stone:14,lake:5,pond:6,farm:5,berry:14,mushroom:12,beehive:5,iron:6,fiber_plant:14};
+  for(const[t,n] of Object.entries(counts)){
     for(let i=0;i<n;i++){
-      objects.push({
-        type, ...OBJ_TYPES[type],
-        x:50+Math.random()*(W-100),
-        y:60+Math.random()*(H-120),
-        maxAmount:OBJ_TYPES[type].amount,
-        id:'o'+Math.random().toString(36).slice(2)
-      });
+      objects.push({...OBJ[t],type:t,x:60+Math.random()*(W-120),y:80+Math.random()*(H-140),amount:OBJ[t].max,maxAmount:OBJ[t].max,id:uid()});
     }
   }
 }
 
-function spawnAnimals(){
+function initAnimals(){
   animals=[];
-  const counts={rabbit:8,deer:5,wolf:3,fish:6,eagle:2};
-  for(const [type,n] of Object.entries(counts)){
-    for(let i=0;i<n;i++) spawnAnimal(type);
-  }
+  [{t:'rabbit',n:10},{t:'deer',n:6},{t:'wolf',n:3},{t:'fish',n:8},{t:'eagle',n:2},{t:'bear',n:2}].forEach(({t,n})=>{
+    for(let i=0;i<n;i++) spawnAnimal(t);
+  });
 }
 
 function spawnAnimal(type){
-  const def=ANIMAL_TYPES[type];
-  animals.push({
-    type, ...def,
-    x:60+Math.random()*(W-120),
-    y:60+Math.random()*(H-120),
-    vx:(Math.random()-.5)*def.speed,
-    vy:(Math.random()-.5)*def.speed,
-    hp:def.hp, maxHp:def.hp,
-    fleeFrom:null, target:null,
-    wanderTimer:Math.floor(Math.random()*200),
-    id:'a'+Math.random().toString(36).slice(2)
-  });
+  const d=ANIM[type];
+  animals.push({...d,type,x:60+Math.random()*(W-120),y:80+Math.random()*(H-140),vx:(Math.random()-.5)*d.spd,vy:(Math.random()-.5)*d.spd,hp:d.hp,maxHp:d.hp,stamina:d.stam,maxStam:d.stam,sleeping:false,sleepTicks:0,wander:Math.floor(Math.random()*200),id:uid()});
 }
+
+const ADEFS=[
+  {id:0,name:'NOVA',emoji:'🤖',color:'#60a5fa',dark:'#1e3a5f',pers:'Meraklı ve teknolojik. Alet yapmayı sever. Stratejik.'},
+  {id:1,name:'ARIA',emoji:'🦾',color:'#f472b6',dark:'#4a1030',pers:'Empatik ve sosyal. İyileştirici. Barışçıl.'},
+  {id:2,name:'ZERO',emoji:'🧠',color:'#4ade80',dark:'#0f3320',pers:'Analitik. Tarım uzmanı. Sabırlı.'},
+  {id:3,name:'FLUX',emoji:'⚙️',color:'#fbbf24',dark:'#3d2000',pers:'Yaratıcı. İşbirliği sever. Avcı.'},
+  {id:4,name:'VIBE',emoji:'✨',color:'#a78bfa',dark:'#2d1b69',pers:'Felsefi. Sanatçı. Topluluğu birleştirir.'},
+];
+let agents=[];
+let selected=-1;
+let tribes=[];
 
 function initAgents(){
   agents=ADEFS.map(d=>({
-    ...d,
-    x:100+Math.random()*(W-200),
-    y:100+Math.random()*(H-200),
-    vx:(Math.random()-.5),
-    vy:(Math.random()-.5),
-    hunger:70+Math.random()*25,
-    thirst:70+Math.random()*25,
-    energy:70+Math.random()*25,
-    social:60+Math.random()*30,
-    warmth:80,
-    hp:100,
-    inventory:{},
-    craftedItems:[],
-    state:'idle',
-    stateTimer:0,
-    goal:null,
-    thoughtText:'',
-    speechText:'',
-    thinkTimer:0,
-    lastThinkTick:0,
-    trail:[],
-    size:18,
-    alive:true
+    ...d, alive:true,
+    x:120+Math.random()*(W-240), y:120+Math.random()*(H-240),
+    vx:(Math.random()-.5)*.7, vy:(Math.random()-.5)*.7,
+    hunger:78+Math.random()*18, thirst:78+Math.random()*18,
+    energy:80+Math.random()*15, social:55+Math.random()*25, warmth:82,
+    hp:100, maxHp:100,
+    hr:.012, tr:.018, er:.009, sr:.006,
+    inventory:{}, craftedItems:[], emotions:{},
+    illness:null, illnessTicks:0, injuries:[],
+    state:'idle', stateTimer:0,
+    goal:null, goalLabel:'',
+    thinkTimer:60+Math.floor(Math.random()*100),
+    lastThinkTick:0, trail:[], size:18,
+    rel:{}, tribe:null, techTier:0, builtThisLife:[],
   }));
 }
 
-// ── NATURE SPAWN ──────────────────────────────────────────────────
-function spawnNature(type){
-  const x=80+Math.random()*(W-160);
-  const y=80+Math.random()*(H-160);
-  if(type.startsWith('animal_')){
-    spawnAnimal(type.replace('animal_',''));
-    addLog(null,'Yeni hayvan dünyaya eklendi: '+type.replace('animal_',''));
-  } else if(type==='disaster'){
-    const near=agents[Math.floor(Math.random()*agents.length)];
-    near.hp=Math.max(1,near.hp-40);
-    addLog(near.id,'⚡ Yıldırım çarptı! (HP: '+Math.round(near.hp)+')');
-    showDialogue(near.id,'Auuu! Ne oldu!?','speak');
-  } else {
-    objects.push({
-      type,...OBJ_TYPES[type],
-      x,y,
-      maxAmount:OBJ_TYPES[type].amount,
-      id:'o'+Math.random().toString(36).slice(2)
-    });
-    addLog(null,'🌍 Doğaya '+type+' eklendi');
+function setEmotion(ag,emo,val){ag.emotions[emo]=Math.min(100,Math.max(0,val))}
+function decayEmotions(){
+  agents.forEach(ag=>{
+    Object.keys(ag.emotions).forEach(k=>{ag.emotions[k]=Math.max(0,ag.emotions[k]-.008*SPD)});
+  });
+}
+function updateRel(ag,other,d){
+  if(!ag.rel[other.id]) ag.rel[other.id]={love:30,trust:30,anger:0};
+  const r=ag.rel[other.id];
+  if(d.love) r.love=Math.max(0,Math.min(100,r.love+d.love));
+  if(d.trust) r.trust=Math.max(0,Math.min(100,r.trust+d.trust));
+  if(d.anger) r.anger=Math.max(0,Math.min(100,r.anger+d.anger));
+}
+
+const RECIPES={
+  stick:     {tier:0,n:{wood:1},g:'🪵Sopa',item:'stick_tool'},
+  stone_axe: {tier:0,n:{stick_tool:1,stone:2},g:'🪓Taş Balta',item:'stone_axe',fx:{gatherWood:2}},
+  spear:     {tier:0,n:{stick_tool:1,stone:1},g:'🗡️Mızrak',item:'spear',fx:{hunt:1}},
+  basket:    {tier:0,n:{fiber:3},g:'🧺Sepet',item:'basket',fx:{carry:1}},
+  campfire:  {tier:1,n:{wood:3,stone:2},need:['stone_axe'],g:'🔥Kamp Ateşi',item:null,fx:{place:'campfire'}},
+  bow:       {tier:1,n:{stick_tool:2,fiber:3},need:['stone_axe'],g:'🏹Yay',item:'bow',fx:{hunt:2}},
+  arrow:     {tier:1,n:{stick_tool:1,stone:1},need:['bow'],g:'🎯Ok',item:'arrow'},
+  medicine:  {tier:1,n:{mushroom:1,berry:1,fiber:1},g:'💊İlaç',item:'medicine',fx:{heal:40}},
+  clothing:  {tier:1,n:{fiber:5},g:'🧥Giysi',item:'clothing',fx:{warmth:40}},
+  tent:      {tier:2,n:{wood:5,fiber:5},need:['campfire'],g:'⛺Çadır',item:null,fx:{place:'tent'}},
+  farm_plot: {tier:2,n:{wood:3,stone:2},need:['stone_axe'],g:'🌽Tarla',item:null,fx:{place:'crops'}},
+  wall:      {tier:2,n:{stone:4},need:['campfire'],g:'🧱Duvar',item:null,fx:{place:'wall'}},
+  storage:   {tier:2,n:{wood:6},need:['stone_axe'],g:'📦Depo',item:null,fx:{place:'storage'}},
+  trap:      {tier:2,n:{wood:2,stone:1,fiber:2},need:['stone_axe'],g:'🪤Tuzak',item:null,fx:{place:'trap'}},
+  house:     {tier:3,n:{wood:10,stone:6},need:['tent','wall'],g:'🏠Ev',item:null,fx:{place:'house'}},
+  armor:     {tier:3,n:{iron:3,fiber:4},need:['clothing'],g:'🛡️Zırh',item:'armor',fx:{defense:1}},
+  iron_axe:  {tier:3,n:{stick_tool:1,iron:2},need:['stone_axe'],g:'⛏️Demir Balta',item:'iron_axe',fx:{gatherWood:3,gatherStone:2}},
+};
+
+function hasItem(ag,item){return ag.craftedItems.some(c=>c===item)}
+
+function tryCraft(ag,key){
+  const r=RECIPES[key]; if(!r) return false;
+  if(r.need){
+    for(const req of r.need) if(!hasItem(ag,req)){addChatMsg(ag.id,'Önce '+req+' lazım','think');return false;}
   }
-  renderSidebar();
+  for(const[m,q] of Object.entries(r.n)){
+    if((ag.inventory[m]||0)<q){
+      const missing=Object.entries(r.n).filter(([m2,q2])=>(ag.inventory[m2]||0)<q2).map(([m2,q2])=>m2+'×'+(q2-Math.floor(ag.inventory[m2]||0))).join(',');
+      addChatMsg(ag.id,'Eksik: '+missing,'think');
+      return false;
+    }
+  }
+  for(const[m,q] of Object.entries(r.n)) ag.inventory[m]-=q;
+  ag.craftedItems.push(r.g);
+  if(r.item) ag.craftedItems.push(r.item);
+  if(r.fx?.heal){ag.hp=Math.min(ag.maxHp,ag.hp+r.fx.heal);ag.illness=null;ag.illnessTicks=0;}
+  if(r.fx?.warmth) ag.warmth=Math.min(100,ag.warmth+r.fx.warmth);
+  if(r.fx?.place){
+    const placeType=r.fx.place;
+    const def=OBJ[placeType];
+    const dx=Math.cos(Math.random()*Math.PI*2)*35;
+    const dy=Math.sin(Math.random()*Math.PI*2)*35;
+    objects.push({...def,type:placeType,x:ag.x+dx,y:ag.y+dy,amount:def.max,maxAmount:def.max,owner:ag.id,id:uid()});
+    ag.builtThisLife.push(placeType);
+    addLog(ag.id,r.g+' kurdu!');
+    addChatMsg(ag.id,r.g+' kurdum!','speak');
+    if(['campfire','tent','house'].includes(placeType)){
+      agents.filter(b=>b.id!==ag.id&&dist(ag,b)<300&&b.alive).forEach(b=>{setEmotion(b,'umutlu',70);updateRel(b,ag,{trust:3,love:2});});
+    }
+  } else {
+    addLog(ag.id,r.g+' yaptı!');
+    addChatMsg(ag.id,r.g+' yaptım!','speak');
+  }
+  ag.techTier=Math.max(ag.techTier,r.tier);
+  setEmotion(ag,'mutlu',85);
+  agents.filter(b=>b.id!==ag.id&&dist(ag,b)<200&&b.alive).forEach(b=>updateRel(b,ag,{love:1,trust:1}));
+  return true;
 }
 
-// ── DIALOGUE SYSTEM ──────────────────────────────────────────────
-function showDialogue(agentId,text,type='think'){
-  const ag=agents.find(a=>a.id===agentId);
-  if(!ag) return;
-  dialogues.push({agentId,text,type,timer:220,id:Math.random()});
-  if(dialogues.length>6) dialogues.shift();
-  renderDialogues();
-  if(type==='speak') ag.speechText=text;
-  else ag.thoughtText=text;
+function craftableNow(ag){
+  return Object.entries(RECIPES).filter(([k,r])=>{
+    if(r.need&&!r.need.every(req=>hasItem(ag,req))) return false;
+    return Object.entries(r.n).every(([m,q])=>(ag.inventory[m]||0)>=q);
+  }).map(([k])=>k);
+}
+function nextDesiredRecipe(ag){
+  const priority=['medicine','stick','stone_axe','spear','campfire','clothing','bow','tent','wall','farm_plot','storage','trap','iron_axe','house','armor','arrow','basket'];
+  const can=craftableNow(ag);
+  for(const k of priority) if(can.includes(k)) return k;
+  return can[0]||null;
 }
 
-function renderDialogues(){
-  const box=document.getElementById('dialogueBox');
-  box.innerHTML=dialogues.filter(d=>d.timer>0).map(d=>{
-    const ag=agents.find(a=>a.id===d.agentId);
-    if(!ag) return '';
-    return`<div class="dialogBubble ${d.type}" style="border-color:${ag.color}44;align-self:${d.type==='think'?'flex-start':'flex-end'}">
-      <div class="dName" style="color:${ag.color}">${ag.emoji} ${ag.name} ${d.type==='think'?'(düşünüyor)':'(konuşuyor)'}</div>
-      <div class="dText">${d.text}</div>
-    </div>`;
-  }).join('');
-}
-
-// ── AI THINKING via Claude API ────────────────────────────────────
+const pendingThinks=new Set();
 async function agentThink(ag){
-  if(ag.thinkTimer>0) return;
-  ag.thinkTimer=300+Math.floor(Math.random()*200);
-  ag.lastThinkTick=TICK;
+  if(pendingThinks.has(ag.id)||!ag.alive) return;
+  pendingThinks.add(ag.id); ag.lastThinkTick=TICK;
+  const nearObjs=objects.filter(o=>dist(ag,o)<220&&o.amount>5&&!['mountain'].includes(o.type)).slice(0,6).map(o=>o.type+'('+Math.round(o.amount)+')').join(', ')||'yok';
+  const nearAnim=animals.filter(a=>dist(ag,a)<220&&!a.sleeping).slice(0,4).map(a=>a.type+(a.agg?'⚠️':'')).join(', ')||'yok';
+  const sleepAnim=animals.filter(a=>dist(ag,a)<220&&a.sleeping).slice(0,3).map(a=>a.type+'😴').join(', ')||'yok';
+  const nearAgs=agents.filter(a=>a.id!==ag.id&&dist(ag,a)<200&&a.alive).map(a=>{
+    const r=ag.rel[a.id]; return a.name+(r?`[❤${Math.round(r.love)} 🤝${Math.round(r.trust)}${r.anger>20?' 😠'+Math.round(r.anger):''}]`:'');
+  }).join(', ')||'kimse';
+  const farAgs=agents.filter(a=>a.id!==ag.id&&dist(ag,a)>=200&&a.alive).map(a=>a.name).join(', ')||'yok';
+  const inv=Object.entries(ag.inventory).filter(([,v])=>v>.5).map(([k,v])=>k+':'+Math.round(v)).join(', ')||'boş';
+  const crafted=ag.craftedItems.slice(-6).join(' ')||'yok';
+  const can=craftableNow(ag);
+  const canStr=can.length?can.join(', '):'hiçbiri (malzeme topla)';
+  const emos=Object.entries(ag.emotions).filter(([,v])=>v>30).map(([k,v])=>k+'('+Math.round(v)+')').join(', ')||'nötr';
+  const myTribe=ag.tribe?tribes.find(t=>t.id===ag.tribe):null;
+  const tribeStr=myTribe?myTribe.name+' (üyeler: '+myTribe.members.map(id=>agents.find(a=>a.id===id)?.name).join(',')+')':'kabilesiz';
 
-  const nearObjs=objects.filter(o=>dist(ag,o)<180&&o.amount>0).slice(0,4).map(o=>o.type).join(', ');
-  const nearAnimals=animals.filter(a=>dist(ag,a)<200).slice(0,3).map(a=>a.type).join(', ');
-  const nearAgents=agents.filter(a=>a.id!==ag.id&&dist(ag,a)<200).map(a=>a.name).join(', ');
-  const inv=Object.entries(ag.inventory).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ')||'boş';
+  const p=`Sen ${ag.name} adında bir AI ajansın. Kişilik: ${ag.pers}
+Teknoloji seviyen: T${ag.techTier} (0=ilkel, 1=alet, 2=yerleşim, 3=gelişmiş)
+Kabilen: ${tribeStr}
 
-  const prompt=`Sen ${ag.name} adında bir AI ajansın. Kişiliğin: ${ag.personality}.
-Durum: Açlık:${Math.round(ag.hunger)}% Su:${Math.round(ag.thirst)}% Enerji:${Math.round(ag.energy)}% Sosyal:${Math.round(ag.social)}% HP:${Math.round(ag.hp)}%
+DURUM: Açlık:${Math.round(ag.hunger)}% Su:${Math.round(ag.thirst)}% Enerji:${Math.round(ag.energy)}% Sosyal:${Math.round(ag.social)}% Sıcaklık:${Math.round(ag.warmth)}% HP:${Math.round(ag.hp)}%
+Sağlık: ${ag.illness?'Hasta:'+ag.illness:'sağlıklı'} ${ag.injuries.slice(-2).join(', ')}
+Duygular: ${emos}
 Envanter: ${inv}
-Yakındaki kaynaklar: ${nearObjs||'yok'}
-Yakındaki hayvanlar: ${nearAnimals||'yok'}
-Yakındaki ajanlar: ${nearAgents||'yok'}
-Yapılabilecek aletler: mızrak(çubuk+taş), sepet(odun), ateş(odun+taş), barınak(odun+taş), ağ(odun+lif), ilaç(mantar+meyve), tuzak(odun+taş)
+Sahip aletler: ${crafted}
+Hava: ${weather.name} ${weather.temp}°C
 
-JSON formatında yanıt ver (başka hiçbir şey yazma):
-{"thought":"iç düşünce (1-2 cümle türkçe)","speech":"varsa birine söyleyeceğin şey (1 cümle türkçe, yoksa boş string)","action":"ne yapacaksın: gather/hunt/craft/rest/socialize/explore","target":"hedef kaynak/hayvan/ajan/alet adı"}`;
+ÇEVRE (220 birim içi):
+Kaynaklar: ${nearObjs}
+Tehlikeli/uyanık hayvanlar: ${nearAnim}
+Uyuyan hayvanlar (kolay av!): ${sleepAnim}
+Yakın ajanlar (konuşabilirsin): ${nearAgs}
+Uzak ajanlar: ${farAgs}
+
+ŞU AN YAPABİLECEĞIN CRAFT'LAR: ${canStr}
+
+TÜM TARİFLER:
+- stick(wood:1) → sopa
+- stone_axe(stick_tool:1,stone:2) → balta
+- spear(stick_tool:1,stone:1) → mızrak
+- basket(fiber:3)
+- campfire(wood:3,stone:2)[stone_axe gerekli]
+- bow(stick_tool:2,fiber:3)[stone_axe]
+- medicine(mushroom:1,berry:1,fiber:1)
+- clothing(fiber:5)
+- tent(wood:5,fiber:5)[campfire]
+- farm_plot(wood:3,stone:2)[stone_axe]
+- wall(stone:4)[campfire]
+- storage(wood:6)[stone_axe]
+- trap(wood:2,stone:1,fiber:2)[stone_axe]
+- house(wood:10,stone:6)[tent,wall]
+- armor(iron:3,fiber:4)[clothing]
+- iron_axe(stick_tool:1,iron:2)[stone_axe]
+
+EYLEMLER: gather(tree/stone/fiber_plant/berry/mushroom/lake/pond/iron/beehive), hunt(rabbit/deer/wolf/bear/fish), farm, craft(tarif), rest, sleep, socialize, befriend(ajan), attack(ajan), explore, heal, hide_in_cave, form_tribe(ajan), flee
+
+STRATEJİ: Önce wood/stone/fiber topla, sonra stick→stone_axe→spear→campfire→ev. Uyuyan hayvanları avla (3x hasar). Dost edin, kabile kur.
+
+SADECE JSON:
+{"thought":"iç düşünce 1-2 cümle türkçe özgün","speech":"yakındakine söz ya da ''","emotion":"duygu","action":"eylem","target":"hedef","craftItem":"tarif adı"}`;
 
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    const res=await fetch(GEMINI_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:200,
-        messages:[{role:'user',content:prompt}]
+        contents:[{parts:[{text:p}]}],
+        generationConfig:{temperature:.9,maxOutputTokens:300,responseMimeType:'application/json'}
       })
     });
     const data=await res.json();
-    const txt=data.content?.map(c=>c.text||'').join('').trim();
-    let parsed;
-    try{
-      const clean=txt.replace(/```json|```/g,'').trim();
-      parsed=JSON.parse(clean);
-    }catch{return}
-
-    if(parsed.thought){
-      ag.thoughtText=parsed.thought;
-      showDialogue(ag.id,parsed.thought,'think');
-      updateMindPane(ag.id,'thought',parsed.thought);
-    }
-    if(parsed.speech&&parsed.speech.trim()){
-      ag.speechText=parsed.speech;
-      setTimeout(()=>showDialogue(ag.id,parsed.speech,'speak'),800);
-      updateMindPane(ag.id,'speech',parsed.speech);
-    }
-    if(parsed.action) applyAIDecision(ag,parsed.action,parsed.target||'');
-
-  }catch(e){console.error('AI think error:',e)}
+    const txt=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json|```/g,'').trim();
+    let parsed; try{parsed=JSON.parse(txt)}catch{pendingThinks.delete(ag.id);return}
+    if(parsed.thought) addChatMsg(ag.id,parsed.thought,'think');
+    const canSpeak=agents.some(b=>b.id!==ag.id&&dist(ag,b)<200&&b.alive);
+    if(parsed.speech&&parsed.speech.trim()&&canSpeak) setTimeout(()=>addChatMsg(ag.id,parsed.speech,'speak'),700);
+    if(parsed.emotion) setEmotion(ag,parsed.emotion,75);
+    applyDecision(ag,parsed.action||'explore',parsed.target||'',parsed.craftItem||'');
+  }catch(e){console.warn('Gemini error',e)}
+  pendingThinks.delete(ag.id);
 }
 
-function updateMindPane(agentId,type,text){
-  const ag=agents.find(a=>a.id===agentId);
-  if(!ag) return;
-  if(!thinkResults[agentId]) thinkResults[agentId]={thought:'',speech:''};
-  thinkResults[agentId][type]=text;
-  renderMindPane();
+function neededResource(ag){
+  if(!hasItem(ag,'stick_tool')&&(ag.inventory.wood||0)<1) return 'tree';
+  if(!hasItem(ag,'stone_axe')&&(ag.inventory.stone||0)<2) return 'stone';
+  if(!hasItem(ag,'spear')&&(ag.inventory.stone||0)<1) return 'stone';
+  if((ag.inventory.fiber||0)<5) return 'fiber_plant';
+  if((ag.inventory.wood||0)<6) return 'tree';
+  if((ag.inventory.stone||0)<4) return 'stone';
+  if(ag.techTier>=2&&(ag.inventory.iron||0)<2) return 'iron';
+  return 'tree';
 }
 
-function renderMindPane(){
-  const pane=document.getElementById('mind');
-  pane.innerHTML=agents.map(ag=>{
-    const tr=thinkResults[ag.id]||{};
-    return`<div class="mindCard">
-      <div class="mindName" style="color:${ag.color}">${ag.emoji} ${ag.name}</div>
-      ${tr.thought?`<div class="mindThought">💭 ${tr.thought}</div>`:'<div class="mindLoading">💭 henüz bir şey düşünmüyor...</div>'}
-      ${tr.speech?`<div class="mindChat">💬 "${tr.speech}"</div>`:''}
-    </div>`;
-  }).join('');
-}
-
-function applyAIDecision(ag,action,target){
-  ag.state=action;
-  ag.stateTimer=120;
+function applyDecision(ag,action,target,craftItem){
+  ag.state=action; ag.stateTimer=70+Math.floor(Math.random()*70);
+  const t=(target||'').toLowerCase();
   if(action==='gather'){
-    const obj=objects.find(o=>o.type===target&&o.amount>0&&dist(ag,o)<250);
-    if(obj) ag.goal={type:'obj',ref:obj};
-    else ag.goal={type:'wander'};
-  } else if(action==='hunt'){
-    const ani=animals.find(a=>a.type===target&&dist(ag,a)<300);
-    if(ani) ag.goal={type:'animal',ref:ani};
-  } else if(action==='craft'){
-    ag.goal={type:'craft',item:target};
-    tryCraft(ag,target);
-  } else if(action==='rest'){
-    ag.goal={type:'rest'};
-    ag.energy=Math.min(100,ag.energy+15);
-    addLog(ag.id,'dinlendi');
-  } else if(action==='socialize'){
-    const partner=agents.find(a=>a.id!==ag.id&&dist(ag,a)<300&&a.alive);
-    if(partner){ag.goal={type:'agent',ref:partner};ag.social=Math.min(100,ag.social+10);partner.social=Math.min(100,partner.social+8)}
-  } else {
-    ag.goal={type:'wander'};
-  }
-}
-
-// ── CRAFTING ──────────────────────────────────────────────────────
-function tryCraft(ag,itemName){
-  const key=Object.keys(CRAFT_RECIPES).find(k=>itemName.toLowerCase().includes(k));
-  if(!key) return;
-  const recipe=CRAFT_RECIPES[key];
-  let canCraft=true;
-  for(const [mat,qty] of Object.entries(recipe.needs)){
-    if((ag.inventory[mat]||0)<qty){canCraft=false;break}
-  }
-  if(canCraft){
-    for(const [mat,qty] of Object.entries(recipe.needs)) ag.inventory[mat]=(ag.inventory[mat]||0)-qty;
-    ag.craftedItems.push(recipe.gives);
-    addLog(ag.id,recipe.gives+' yaptı!');
-    showDialogue(ag.id,'Harika! '+recipe.gives+' yapmayı başardım!','speak');
-    for(const [bonus,val] of Object.entries(recipe.bonus)){
-      if(bonus==='heal') ag.hp=Math.min(100,ag.hp+val);
-      if(bonus==='rest') ag.energy=Math.min(100,ag.energy+val);
+    let o=objects.filter(o=>o.type===t&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(!o||dist(ag,o)>400){
+      const need=neededResource(ag);
+      o=objects.filter(o=>o.type===need&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
     }
-  } else {
-    const missing=Object.entries(recipe.needs).filter(([m,q])=>(ag.inventory[m]||0)<q).map(([m])=>m).join(', ');
-    showDialogue(ag.id,'Eksik malzeme: '+missing+'. Toplamam lazım.','think');
-    ag.goal={type:'wander'};
+    ag.goal=o?{type:'obj',ref:o}:{type:'wander'}; ag.goalLabel='topl:'+(o?o.type:'?');
+  } else if(action==='hunt'){
+    const a=animals.filter(a=>(a.type===t||!t)&&a.hp>0).sort((x,y)=>{
+      const sa=x.sleeping?0:1, sb=y.sleeping?0:1;
+      if(sa!==sb) return sa-sb;
+      return dist(ag,x)-dist(ag,y);
+    })[0];
+    if(a&&dist(ag,a)<400){ag.goal={type:'animal',ref:a};ag.goalLabel='av:'+a.type;}
+    else {ag.goal={type:'wander'};ag.goalLabel='av arıyor';}
+  } else if(action==='farm'){
+    const f=objects.find(o=>['farm','crops'].includes(o.type)&&dist(ag,o)<300);
+    if(f){ag.goal={type:'obj',ref:f};ag.goalLabel='tarım';}
+    else if(hasItem(ag,'stone_axe')&&(ag.inventory.wood||0)>=3&&(ag.inventory.stone||0)>=2){tryCraft(ag,'farm_plot');ag.goal=null;}
+    else{ag.goal={type:'wander'};ag.goalLabel='tarla malzeme';}
+  } else if(action==='craft'){
+    let key=craftItem||target;
+    if(key) key=Object.keys(RECIPES).find(k=>k===key||(key+'').toLowerCase().includes(k));
+    if(!key) key=nextDesiredRecipe(ag);
+    if(key){tryCraft(ag,key);ag.goal=null;ag.goalLabel='craft:'+key;}
+    else{ag.goal={type:'wander'};ag.goalLabel='malzeme';}
+  } else if(action==='rest'||action==='sleep'){
+    ag.energy=Math.min(100,ag.energy+10);
+    const shelter=objects.find(o=>o.shelter&&dist(ag,o)<260);
+    if(shelter){ag.goal={type:'obj',ref:shelter};ag.goalLabel='dinl:'+shelter.type;}
+    else{ag.goal=null;ag.goalLabel='dinl';}
+  } else if(action==='socialize'||action==='befriend'){
+    const partner=agents.find(b=>(b.name===target||!target)&&b.id!==ag.id&&dist(ag,b)<260&&b.alive)
+      ||agents.filter(b=>b.id!==ag.id&&b.alive).sort((x,y)=>dist(ag,x)-dist(ag,y))[0];
+    if(partner){ag.goal={type:'agent',ref:partner,mode:'friend'};ag.goalLabel='sos:'+partner.name;updateRel(ag,partner,{love:5,trust:3});updateRel(partner,ag,{love:4,trust:3});setEmotion(ag,'mutlu',60);setEmotion(partner,'mutlu',50);}
+  } else if(action==='attack'){
+    const target_ag=agents.find(b=>b.name===target&&b.id!==ag.id&&b.alive);
+    if(target_ag){ag.goal={type:'agent',ref:target_ag,mode:'attack'};ag.goalLabel='saldır:'+target_ag.name;updateRel(ag,target_ag,{anger:20,love:-10,trust:-15});}
+  } else if(action==='heal'){
+    if(hasItem(ag,'medicine')){ag.hp=Math.min(ag.maxHp,ag.hp+40);ag.illness=null;ag.illnessTicks=0;ag.craftedItems=ag.craftedItems.filter(c=>c!=='medicine'&&!c.includes('İlaç'));addLog(ag.id,'💊 İyileşti');setEmotion(ag,'umutlu',70);}
+    else if((ag.inventory.mushroom||0)>=1&&(ag.inventory.berry||0)>=1&&(ag.inventory.fiber||0)>=1) tryCraft(ag,'medicine');
+    ag.goal=null;
+  } else if(action==='hide_in_cave'){
+    const cave=objects.filter(o=>o.type==='cave').sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(cave){ag.goal={type:'obj',ref:cave};ag.goalLabel='mağaraya';}
+  } else if(action==='form_tribe'){
+    const partner=agents.find(b=>b.name===target&&b.id!==ag.id&&dist(ag,b)<200&&b.alive);
+    if(partner) formTribe(ag,partner);
+    ag.goal=null;
+  } else if(action==='flee'){
+    const threat=animals.filter(a=>a.agg&&!a.sleeping&&dist(ag,a)<250).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(threat){
+      const dx=ag.x-threat.x,dy=ag.y-threat.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+      ag.goal={type:'flee',tx:ag.x+dx/d*300,ty:ag.y+dy/d*300};ag.goalLabel='kaç!';
+      setEmotion(ag,'korkmuş',90);
+    }
+  } else {ag.goal={type:'wander'};ag.goalLabel='keşif'}
+}
+
+const TRIBE_NAMES=['Kuzey Yıldızı','Güneş Çocukları','Orman Halkı','Nehir Kabilesi','Dağ Avcıları'];
+function formTribe(a,b){
+  const r1=a.rel[b.id], r2=b.rel[a.id];
+  if(!r1||r1.love<55||!r2||r2.love<55){addChatMsg(a.id,'Henüz yeterince güven yok','think');return;}
+  if(a.tribe&&b.tribe&&a.tribe===b.tribe) return;
+  if(a.tribe){const t=tribes.find(t=>t.id===a.tribe);t.members.push(b.id);b.tribe=t.id;addLog(a.id,'🤝 '+b.name+' kabileye katıldı: '+t.name);}
+  else if(b.tribe){const t=tribes.find(t=>t.id===b.tribe);t.members.push(a.id);a.tribe=t.id;addLog(b.id,'🤝 '+a.name+' kabileye katıldı: '+t.name);}
+  else {
+    const name=TRIBE_NAMES[tribes.length%TRIBE_NAMES.length];
+    const t={id:uid(),name,color:a.color,members:[a.id,b.id],home:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
+    tribes.push(t); a.tribe=t.id; b.tribe=t.id;
+    addLog(a.id,'🏳️ Kabile kuruldu: '+name);
+    addChatMsg(a.id,'Bir kabile kurduk! '+name,'speak');
   }
 }
 
-// ── AGENT UPDATE ─────────────────────────────────────────────────
 function updateAgent(ag){
   if(!ag.alive) return;
-  ag.thinkTimer=Math.max(0,ag.thinkTimer-1);
-  ag.hunger=Math.max(0,ag.hunger-0.008*SPD);
-  ag.thirst=Math.max(0,ag.thirst-0.012*SPD);
-  ag.energy=Math.max(0,ag.energy-0.006*SPD);
-  ag.social=Math.max(0,ag.social-0.005*SPD);
-  if(ag.hunger<5||ag.thirst<5) ag.hp=Math.max(0,ag.hp-0.05*SPD);
-  if(ag.hp<=0){ag.alive=false;addLog(ag.id,'hayatını kaybetti 💀');return}
+  const wm=weather.cold?1.9:weather.hot?1.5:1;
+  ag.hunger=Math.max(0,ag.hunger-ag.hr*SPD*wm);
+  ag.thirst=Math.max(0,ag.thirst-ag.tr*SPD*wm);
+  ag.energy=Math.max(0,ag.energy-ag.er*SPD);
+  ag.social=Math.max(0,ag.social-ag.sr*SPD);
+  ag.warmth=Math.max(0,ag.warmth+(weather.cold?-.04:weather.hot?-.02:.003)*SPD);
+  const inShelter=objects.some(o=>o.shelter&&dist(ag,o)<o.sz+10);
+  if(inShelter){ag.warmth=Math.min(100,ag.warmth+.04*SPD);ag.energy=Math.min(100,ag.energy+.02*SPD);}
+  ag.warmth=Math.min(100,ag.warmth);
 
-  // Auto survival overrides
-  if(ag.hunger<15&&!ag.goal?.priority){
-    const food=objects.find(o=>['mushroom','berry','field'].includes(o.type)&&o.amount>0);
-    if(food){ag.goal={type:'obj',ref:food};ag.state='gather'}
-  }
-  if(ag.thirst<15&&!ag.goal?.priority){
-    const water=objects.find(o=>o.type==='lake'&&o.amount>0);
-    if(water){ag.goal={type:'obj',ref:water};ag.state='gather'}
+  // REAL HP damage — agents can actually die now
+  if(ag.hunger<10) ag.hp=Math.max(0,ag.hp-.04*SPD);
+  if(ag.thirst<10) ag.hp=Math.max(0,ag.hp-.06*SPD);
+  if(ag.warmth<10) ag.hp=Math.max(0,ag.hp-.05*SPD);
+  if(ag.hunger<3) ag.hp=Math.max(0,ag.hp-.12*SPD);
+  if(ag.thirst<3) ag.hp=Math.max(0,ag.hp-.18*SPD);
+  if(ag.hunger>40&&ag.thirst>40&&ag.warmth>30&&!ag.illness) ag.hp=Math.min(ag.maxHp,ag.hp+.006*SPD);
+
+  if(ag.illness){ag.illnessTicks-=SPD;ag.hp=Math.max(0,ag.hp-.012*SPD);if(ag.illnessTicks<=0){ag.illness=null;addLog(ag.id,'İyileşti')}}
+  if(ag.hp<=0){
+    ag.alive=false;addLog(ag.id,'💀 Öldü');addChatMsg(ag.id,'Son...','think');
+    agents.filter(b=>b.id!==ag.id&&b.alive).forEach(b=>{const r=b.rel[ag.id];if(r&&r.love>40){setEmotion(b,'üzgün',95);addChatMsg(b.id,ag.name+' öldü... acı çekiyorum.','think');}});
+    return;
   }
 
-  // Move toward goal
-  let moved=false;
+  if(ag.hunger<15&&(!ag.goal||ag.goal.type==='wander')){
+    const f=objects.filter(o=>['mushroom','berry','farm','crops','beehive'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(f){ag.goal={type:'obj',ref:f};ag.state='gather';ag.goalLabel='acil:yemek';}
+  }
+  if(ag.thirst<15&&(!ag.goal||ag.goal.type==='wander')){
+    const w=objects.filter(o=>['lake','pond'].includes(o.type)&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(w){ag.goal={type:'obj',ref:w};ag.state='gather';ag.goalLabel='acil:su';}
+  }
+  if(ag.warmth<15&&(!ag.goal||ag.goal.type==='wander')){
+    const fi=objects.filter(o=>(o.type==='campfire')&&o.amount>10).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(fi){ag.goal={type:'obj',ref:fi};ag.state='gather';ag.goalLabel='acil:ısınma';}
+    else if((ag.inventory.wood||0)>=3&&(ag.inventory.stone||0)>=2&&hasItem(ag,'stone_axe')) tryCraft(ag,'campfire');
+  }
+  const threat=animals.find(a=>a.agg&&!a.sleeping&&dist(ag,a)<140&&a.hp>0);
+  if(threat&&(!ag.goal||(ag.goal.type!=='flee'&&ag.goal.type!=='animal'))){
+    const cave=objects.filter(o=>o.type==='cave'||o.type==='house').sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(hasItem(ag,'spear')&&ag.hp>60&&ag.energy>40){
+      ag.goal={type:'animal',ref:threat};ag.state='hunt';ag.goalLabel='savun!';
+    } else if(cave&&dist(ag,cave)<260){
+      ag.goal={type:'obj',ref:cave};ag.state='hide';ag.goalLabel='mağaraya!';
+      setEmotion(ag,'korkmuş',85);
+    } else {
+      const dx=ag.x-threat.x,dy=ag.y-threat.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+      ag.goal={type:'flee',tx:ag.x+dx/d*300,ty:ag.y+dy/d*300};ag.goalLabel='kaç!';
+      setEmotion(ag,'korkmuş',90);
+    }
+  }
+
+  if(Math.random()<.003*SPD){
+    const next=nextDesiredRecipe(ag);
+    if(next) tryCraft(ag,next);
+  }
+
+  ag.thinkTimer=Math.max(0,ag.thinkTimer-SPD);
+  if(ag.thinkTimer<=0&&TICK-ag.lastThinkTick>150&&!pendingThinks.has(ag.id)){
+    ag.thinkTimer=180+Math.floor(Math.random()*180); agentThink(ag);
+  }
+
   if(ag.goal){
     const g=ag.goal;
-    if(g.type==='obj'&&g.ref&&g.ref.amount>0){
+    if(g.type==='obj'&&g.ref){
+      if(g.ref.amount<=3&&!g.ref.shelter&&!g.ref.storage){ag.goal=null;return}
       const dx=g.ref.x-ag.x,dy=g.ref.y-ag.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d>22){
-        ag.vx=dx/d*1.6*SPD; ag.vy=dy/d*1.6*SPD; moved=true;
-      } else {
-        gatherFrom(ag,g.ref);
-      }
-    } else if(g.type==='animal'&&g.ref&&g.ref.hp>0){
+      if(d>g.ref.sz+8){ag.vx=dx/d*1.5*SPD;ag.vy=dy/d*1.5*SPD}
+      else gatherFrom(ag,g.ref);
+    } else if(g.type==='animal'&&g.ref){
+      if(g.ref.hp<=0){ag.goal=null;return}
       const dx=g.ref.x-ag.x,dy=g.ref.y-ag.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d>30){ag.vx=dx/d*2*SPD;ag.vy=dy/d*2*SPD;moved=true}
-      else{huntAnimal(ag,g.ref)}
+      if(d>28){ag.vx=dx/d*1.8*SPD;ag.vy=dy/d*1.8*SPD}else huntAnimal(ag,g.ref);
     } else if(g.type==='agent'&&g.ref&&g.ref.alive){
       const dx=g.ref.x-ag.x,dy=g.ref.y-ag.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d>35){ag.vx=dx/d*1.4*SPD;ag.vy=dy/d*1.4*SPD;moved=true}
-    } else if(g.type==='wander'||!g.ref||g.ref.amount<=0){
-      ag.vx+=(Math.random()-.5)*.15*SPD;
-      ag.vy+=(Math.random()-.5)*.15*SPD;
+      if(d>35){ag.vx=dx/d*1.3*SPD;ag.vy=dy/d*1.3*SPD}
+      else{
+        if(g.mode==='attack'){
+          const dmg=(.5+(hasItem(g.ref,'armor')?-.2:0)+(hasItem(ag,'spear')?.4:0)+(hasItem(ag,'bow')?.6:0))*SPD;
+          g.ref.hp=Math.max(0,g.ref.hp-dmg);
+          if(Math.random()<.05){addChatMsg(g.ref.id,'Saldırıya uğradım!','speak');setEmotion(g.ref,'öfkeli',80);updateRel(g.ref,ag,{anger:8,trust:-5,love:-3});}
+          if(g.ref.hp<=0){addLog(ag.id,'⚔️ '+g.ref.name+' öldürdü');ag.goal=null;}
+        } else {
+          ag.social=Math.min(100,ag.social+.6*SPD);g.ref.social=Math.min(100,g.ref.social+.5*SPD);
+          if(Math.random()<.01*SPD){updateRel(ag,g.ref,{love:1,trust:.5});updateRel(g.ref,ag,{love:1,trust:.5});}
+          const r1=ag.rel[g.ref.id], r2=g.ref.rel[ag.id];
+          if(r1&&r2&&r1.love>70&&r2.love>70&&!ag.tribe&&!g.ref.tribe&&Math.random()<.01) formTribe(ag,g.ref);
+          if(ag.social>88) ag.goal=null;
+        }
+      }
+    } else if(g.type==='flee'){
+      const dx=g.tx-ag.x,dy=g.ty-ag.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+      ag.vx=dx/d*2.2*SPD;ag.vy=dy/d*2.2*SPD;
+      if(d<30) ag.goal=null;
+    } else if(g.type==='craft'){tryCraft(ag,g.key);ag.goal=null;}
+    else{ag.vx+=(Math.random()-.5)*.14*SPD;ag.vy+=(Math.random()-.5)*.14*SPD;}
+  } else {ag.vx+=(Math.random()-.5)*.09*SPD;ag.vy+=(Math.random()-.5)*.09*SPD;}
+
+  if(ag.tribe){
+    const t=tribes.find(t=>t.id===ag.tribe);
+    if(t){
+      const mate=agents.find(a=>t.members.includes(a.id)&&a.id!==ag.id&&a.alive);
+      if(mate&&dist(ag,mate)>180){
+        const dx=mate.x-ag.x,dy=mate.y-ag.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        ag.vx+=dx/d*.15*SPD; ag.vy+=dy/d*.15*SPD;
+      }
     }
-  } else {
-    ag.vx+=(Math.random()-.5)*.1*SPD;
-    ag.vy+=(Math.random()-.5)*.1*SPD;
   }
 
-  const maxV=1.8*SPD, v=Math.sqrt(ag.vx**2+ag.vy**2);
-  if(v>maxV){ag.vx=ag.vx/v*maxV;ag.vy=ag.vy/v*maxV}
+  const maxV=weather.name==='Fırtınalı'?1.0:1.7;
+  const v=Math.sqrt(ag.vx**2+ag.vy**2);
+  if(v>maxV*SPD){ag.vx=ag.vx/v*maxV*SPD;ag.vy=ag.vy/v*maxV*SPD}
   ag.x+=ag.vx; ag.y+=ag.vy;
-  if(ag.x<ag.size){ag.x=ag.size;ag.vx*=-.7}
-  if(ag.x>W-ag.size){ag.x=W-ag.size;ag.vx*=-.7}
-  if(ag.y<ag.size+45){ag.y=ag.size+45;ag.vy*=-.7}
-  if(ag.y>H-ag.size){ag.y=H-ag.size;ag.vy*=-.7}
-  ag.trail.push({x:ag.x,y:ag.y});
-  if(ag.trail.length>25) ag.trail.shift();
+  if(ag.x<ag.size){ag.x=ag.size;ag.vx*=-.7} if(ag.x>W-ag.size){ag.x=W-ag.size;ag.vx*=-.7}
+  if(ag.y<ag.size+42){ag.y=ag.size+42;ag.vy*=-.7} if(ag.y>H-ag.size){ag.y=H-ag.size;ag.vy*=-.7}
+  ag.trail.push({x:ag.x,y:ag.y}); if(ag.trail.length>22) ag.trail.shift();
 
-  // Periodic AI thinking
-  if(ag.thinkTimer<=0&&TICK-ag.lastThinkTick>180){
-    agentThink(ag);
-  }
+  if(weather.rain>0&&Math.random()<.00005*SPD&&!ag.illness&&ag.warmth<45){ag.illness='soğuk algınlığı';ag.illnessTicks=900;addLog(ag.id,'🤧 Soğuk algınlığı');}
+  if(weather.hot&&Math.random()<.00003*SPD&&!ag.illness){ag.illness='ateş';ag.illnessTicks=600;addLog(ag.id,'🤒 Ateşlendi');}
 }
 
 function gatherFrom(ag,obj){
-  const take=Math.min(2*SPD, obj.amount);
+  if(obj.shelter){
+    ag.energy=Math.min(100,ag.energy+.4*SPD);
+    ag.warmth=Math.min(100,ag.warmth+.1*SPD);
+    if(ag.energy>95) ag.goal=null;
+    return;
+  }
+  if(obj.storage){
+    Object.keys(ag.inventory).forEach(k=>{
+      if(ag.inventory[k]>5){const give=ag.inventory[k]*.3;ag.inventory[k]-=give;obj.stored=obj.stored||{};obj.stored[k]=(obj.stored[k]||0)+give;}
+    });
+    ag.goal=null; return;
+  }
+  if(!obj.res){ag.goal=null;return;}
+  const axe=hasItem(ag,'iron_axe')?3:hasItem(ag,'stone_axe')?2:1;
+  const take=Math.min(1.4*SPD*(obj.type==='tree'?axe:1),obj.amount);
   obj.amount=Math.max(0,obj.amount-take);
-  const mat=obj.resource;
-  ag.inventory[mat]=(ag.inventory[mat]||0)+Math.round(take);
-  if(mat==='food'||mat==='honey'){ag.hunger=Math.min(100,ag.hunger+take*1.2)}
-  if(mat==='water'){ag.thirst=Math.min(100,ag.thirst+take*1.5)}
-  if(mat==='warmth'){ag.energy=Math.min(100,ag.energy+take*.8)}
+  const mat=obj.res;
+  ag.inventory[mat]=(ag.inventory[mat]||0)+take;
   if(mat==='wood'){
-    ag.inventory['stick']=(ag.inventory['stick']||0)+Math.round(take/2);
-    ag.inventory['fiber']=(ag.inventory['fiber']||0)+Math.round(take/3);
+    ag.inventory.stick_tool=(ag.inventory.stick_tool||0)+take*.15;
+    ag.inventory.fiber=(ag.inventory.fiber||0)+take*.2;
   }
-  if(obj.amount<=0){
-    addLog(ag.id,obj.type+' tükendi');
-    ag.goal=null;
-  }
-  if(Math.random()<.04) addLog(ag.id,obj.emoji+' '+obj.type+' topladı → '+mat+':'+(ag.inventory[mat]||0));
+  if(['food','honey'].includes(mat)){ag.hunger=Math.min(100,ag.hunger+take*2.5);setEmotion(ag,'mutlu',50);}
+  if(mat==='water'){ag.thirst=Math.min(100,ag.thirst+take*3);setEmotion(ag,'mutlu',45);}
+  if(mat==='warmth') ag.warmth=Math.min(100,ag.warmth+take*1.4);
+  if(mat==='shelter'){ag.energy=Math.min(100,ag.energy+take*.4);ag.warmth=Math.min(100,ag.warmth+take*.2);}
+  if(obj.amount<=3){addLog(ag.id,obj.emoji+' '+obj.type+' tükendi');ag.goal=null;}
+  if(Math.random()<.02) addLog(ag.id,obj.emoji+' '+mat+' +'+Math.round(ag.inventory[mat]||0));
 }
 
 function huntAnimal(ag,animal){
-  const dmg=5+(ag.craftedItems.some(c=>c.includes('Mızrak'))?15:0)*SPD;
+  const hasBow=hasItem(ag,'bow');
+  const hasSpear=hasItem(ag,'spear');
+  const sleepBonus=animal.sleeping?3:1;
+  const dmg=(1+(hasBow?5:0)+(hasSpear?3:0))*SPD*sleepBonus;
   animal.hp-=dmg;
+  if(animal.sleeping){animal.sleeping=false;animal.sleepTicks=0;}
+  if(!animal.flee&&Math.random()<.12){
+    const armorRed=hasItem(ag,'armor')?.5:1;
+    ag.injuries.push(animal.type+' yaraladı');ag.hp=Math.max(0,ag.hp-animal.dmg*.4*armorRed);
+  }
   if(animal.hp<=0){
-    ag.inventory['meat']=(ag.inventory['meat']||0)+animal.food;
-    ag.hunger=Math.min(100,ag.hunger+animal.food*.6);
-    addLog(ag.id,animal.emoji+' '+animal.type+' avladı! +'+animal.food+' et');
-    showDialogue(ag.id,'Avım düştü! Yemek var!','speak');
+    ag.inventory.meat=(ag.inventory.meat||0)+animal.food;
+    ag.hunger=Math.min(100,ag.hunger+animal.food*.5);
+    setEmotion(ag,'mutlu',70);
+    addLog(ag.id,animal.emoji+' avladı! +'+animal.food+'et');
+    addChatMsg(ag.id,'Av başarılı!','speak');
     animals=animals.filter(a=>a.id!==animal.id);
     ag.goal=null;
-    if(Math.random()<.3) spawnAnimal(animal.type); // respawn
+    if(Math.random()<.5) setTimeout(()=>spawnAnimal(animal.type),8000/SPD);
   }
 }
 
-// ── ANIMAL UPDATE ─────────────────────────────────────────────────
 function updateAnimal(ani){
-  ani.wanderTimer--;
-  // Flee from agents
+  if(ani.sleeping){
+    ani.sleepTicks-=SPD;
+    ani.vx*=.9;ani.vy*=.9;
+    ani.stamina=Math.min(ani.maxStam,ani.stamina+.4*SPD);
+    if(ani.sleepTicks<=0){ani.sleeping=false;ani.stamina=ani.maxStam;}
+    return;
+  }
+  ani.wander-=SPD;
   const near=agents.filter(a=>a.alive&&dist(a,ani)<150);
-  if(near.length>0&&ani.flee){
-    const a=near[0];
-    const dx=ani.x-a.x,dy=ani.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    ani.vx=dx/d*ani.speed*2*SPD;
-    ani.vy=dy/d*ani.speed*2*SPD;
-  } else if(ani.aggressive&&near.length>0){
-    const target=near[0];
-    const dx=target.x-ani.x,dy=target.y-ani.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    if(d<30){
-      target.hp=Math.max(0,target.hp-1*SPD);
-      if(Math.random()<.02) showDialogue(target.id,'Saldırı altındayım!','speak');
-    } else {
-      ani.vx=dx/d*ani.speed*SPD;
-      ani.vy=dy/d*ani.speed*SPD;
-    }
-  } else if(ani.wanderTimer<=0){
-    ani.wanderTimer=80+Math.floor(Math.random()*150);
-    ani.vx=(Math.random()-.5)*ani.speed*SPD;
-    ani.vy=(Math.random()-.5)*ani.speed*SPD;
+  const isRunning=ani.flee?near.length>0:(ani.agg&&near.length>0);
+  if(isRunning){
+    ani.stamina=Math.max(0,ani.stamina-.6*SPD);
+  } else {
+    ani.stamina=Math.min(ani.maxStam,ani.stamina+.15*SPD);
+  }
+  if(ani.stamina<=0){
+    ani.sleeping=true;
+    ani.sleepTicks=2880;
+    ani.vx=ani.vy=0;
+    return;
+  }
+  const exhausted=ani.stamina<ani.maxStam*.2;
+  const spdMul=exhausted?.4:1;
+
+  if(ani.flee&&near.length>0){
+    const a=near[0]; const dx=ani.x-a.x,dy=ani.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    ani.vx=dx/d*ani.spd*2.4*SPD*spdMul; ani.vy=dy/d*ani.spd*2.4*SPD*spdMul;
+  } else if(ani.agg&&near.length>0){
+    const t=near[0]; const dx=t.x-ani.x,dy=t.y-ani.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+    if(d<28){
+      const armorRed=hasItem(t,'armor')?.4:1;
+      t.hp=Math.max(0,t.hp-ani.dmg*.05*SPD*armorRed);
+      t.injuries.push(ani.type+' ısırması');
+      if(Math.random()<.04){addChatMsg(t.id,'Saldırı altındayım!','speak');setEmotion(t,'korkmuş',90);}
+    } else{ani.vx=dx/d*ani.spd*SPD*spdMul;ani.vy=dy/d*ani.spd*SPD*spdMul;}
+  } else if(ani.wander<=0){
+    ani.wander=60+Math.floor(Math.random()*130);
+    ani.vx=(Math.random()-.5)*ani.spd*SPD; ani.vy=(Math.random()-.5)*ani.spd*SPD;
   }
   ani.x+=ani.vx; ani.y+=ani.vy;
-  if(ani.x<15){ani.x=15;ani.vx*=-.8}
-  if(ani.x>W-15){ani.x=W-15;ani.vx*=-.8}
-  if(ani.y<50){ani.y=50;ani.vy*=-.8}
-  if(ani.y>H-15){ani.y=H-15;ani.vy*=-.8}
+  if(ani.x<15){ani.x=15;ani.vx*=-.8} if(ani.x>W-15){ani.x=W-15;ani.vx*=-.8}
+  if(ani.y<52){ani.y=52;ani.vy*=-.8} if(ani.y>H-15){ani.y=H-15;ani.vy*=-.8}
+  const trap=objects.find(o=>o.type==='trap'&&dist(o,ani)<o.sz);
+  if(trap&&ani.flee){ani.hp=0;trap.amount-=20;if(trap.amount<=0)objects=objects.filter(o=>o.id!==trap.id);}
 }
 
-// ── OBJECT REGEN ──────────────────────────────────────────────────
 function updateObjects(){
   objects.forEach(o=>{
-    if(o.amount<o.maxAmount&&o.regen>0){
-      o.amount=Math.min(o.maxAmount,o.amount+o.regen*SPD);
-    }
+    if(o.regen>0&&o.amount<o.maxAmount) o.amount=Math.min(o.maxAmount,o.amount+o.regen*SPD);
+    if(o.regen<0) o.amount=Math.max(0,o.amount+o.regen*SPD);
   });
+  objects=objects.filter(o=>!(o.type==='campfire'&&o.amount<=0));
 }
 
-// ── DRAWING ──────────────────────────────────────────────────────
+const TOOLS=[
+  {id:'none',l:'🖱️ Seç'},{id:'tree',l:'🌳 Ağaç'},{id:'stone',l:'🪨 Taş'},
+  {id:'lake',l:'💧 Göl'},{id:'berry',l:'🫐 Meyve'},{id:'mushroom',l:'🍄 Mantar'},
+  {id:'fiber_plant',l:'🌿 Lif'},{id:'iron',l:'⛓️ Demir'},{id:'cave',l:'🕳️ Mağara'},
+  {id:'campfire',l:'🔥 Ateş'},
+  {id:'rabbit',l:'🐇 Tavşan'},{id:'deer',l:'🦌 Geyik'},
+  {id:'wolf',l:'🐺 Kurt',d:true},{id:'bear',l:'🐻 Ayı',d:true},
+  {id:'storm',l:'⛈️ Fırtına',d:true},{id:'drought',l:'🔆 Kuraklık',d:true},{id:'flood',l:'🌊 Sel',d:true},
+];
+function buildToolBar(){
+  document.getElementById('toolBar').innerHTML=TOOLS.map(t=>`<button class="tBtn${t.d?' dng':''}" id="tb_${t.id}" onclick="setTool('${t.id}')">${t.l}</button>`).join('');
+}
+function setTool(id){
+  activeTool=id;
+  TOOLS.forEach(t=>document.getElementById('tb_'+t.id).classList.toggle('on',t.id===id));
+  const cur=document.getElementById('cursorEl');
+  const tool=TOOLS.find(t=>t.id===id);
+  cur.textContent=tool?.l?.split(' ')[0]||'';
+  cur.style.display=id==='none'?'none':'block';
+}
+
+canvas.addEventListener('mousemove',e=>{
+  const cur=document.getElementById('cursorEl');
+  cur.style.left=e.clientX+'px'; cur.style.top=e.clientY+'px';
+});
+canvas.addEventListener('click',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(activeTool==='none'){agents.forEach(ag=>{if(dist(ag,{x:mx,y:my})<ag.size+8){selected=ag.id}});renderSidebar();return;}
+  const animTools=['rabbit','deer','wolf','bear','eagle'];
+  if(animTools.includes(activeTool)){spawnAnimal(activeTool);const a=animals[animals.length-1];a.x=mx;a.y=my;addLog(null,(ANIM[activeTool]?.emoji||'?')+' bırakıldı');}
+  else if(activeTool==='storm') triggerDisaster('storm');
+  else if(activeTool==='drought') triggerDisaster('heat');
+  else if(activeTool==='flood') triggerDisaster('flood');
+  else if(OBJ[activeTool]){
+    objects.push({...OBJ[activeTool],type:activeTool,x:mx,y:my,amount:OBJ[activeTool].max,maxAmount:OBJ[activeTool].max,id:uid()});
+    addLog(null,(OBJ[activeTool].emoji||'?')+' '+activeTool+' eklendi');
+  }
+});
+
 function draw(){
   ctx.clearRect(0,0,W,H);
-  // Background
-  ctx.fillStyle='#080c14';ctx.fillRect(0,0,W,H);
-  // Grid
-  ctx.strokeStyle='rgba(26,40,60,.4)';ctx.lineWidth=.5;
-  const gs=50;
+  const hour=Math.floor(TICK/60/60)%24;
+  const isNight=hour<6||hour>20;
+  const isDusk=(hour>=18&&hour<=20)||(hour>=5&&hour<=7);
+  ctx.fillStyle=isNight?'#02030a':isDusk?'#0a0712':'#07090f'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=isNight?'rgba(10,18,12,.5)':'rgba(18,30,18,.35)'; ctx.fillRect(0,0,W,H);
+  if(weather.name==='Sisli'){ctx.fillStyle='rgba(140,160,180,.07)';ctx.fillRect(0,0,W,H);}
+  if(weather.name==='Fırtınalı'){ctx.fillStyle='rgba(60,50,120,.08)';ctx.fillRect(0,0,W,H);}
+  if(weather.name==='Karlı'){ctx.fillStyle='rgba(180,220,255,.05)';ctx.fillRect(0,0,W,H);}
+  if(isNight){
+    ctx.fillStyle='white';
+    for(let s=0;s<80;s++){const sx=((s*137.5)%1)*W,sy=((s*97.3)%1)*(H*.4);const ss=Math.random()<.002?.8:.3;ctx.globalAlpha=.3+Math.sin(TICK*.01+s)*.2;ctx.fillRect(sx,sy,ss,ss);}
+    ctx.globalAlpha=.85;ctx.font='32px serif';ctx.textAlign='center';ctx.fillText('🌙',W-60,60);
+    ctx.globalAlpha=1;
+  } else if(!isDusk){
+    ctx.globalAlpha=.9;ctx.font='28px serif';ctx.textAlign='center';ctx.fillText('☀️',W-60,55);
+    ctx.globalAlpha=1;
+  }
+  ctx.strokeStyle='rgba(20,40,55,.3)';ctx.lineWidth=.5;
+  const gs=65;
   for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
   for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
 
-  // Objects
-  objects.forEach(o=>{
-    if(o.amount<=0) return;
-    const a=Math.max(.3,o.amount/o.maxAmount);
-    ctx.save();ctx.globalAlpha=a*.7;
-    ctx.font=(o.size+2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(o.emoji,o.x,o.y);
-    if(o.amount<o.maxAmount*.5){
-      ctx.globalAlpha=.6;ctx.fillStyle='#f87171';ctx.font='7px JetBrains Mono,monospace';
-      ctx.fillText(Math.round(o.amount),o.x,o.y+o.size);
-    }
+  rainPtcls.forEach(p=>{ctx.save();ctx.strokeStyle='rgba(100,160,220,.45)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+p.vx*2,p.y+p.vy*2);ctx.stroke();ctx.restore();});
+  snowPtcls.forEach(p=>{ctx.save();ctx.globalAlpha=.7;ctx.fillStyle='white';ctx.beginPath();ctx.arc(p.x,p.y,p.sz/2,0,Math.PI*2);ctx.fill();ctx.restore();});
+
+  objects.filter(o=>['mountain','hill'].includes(o.type)).forEach(o=>{
+    ctx.save();ctx.font=(o.sz+2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.emoji,o.x,o.y);ctx.restore();
+  });
+  objects.filter(o=>!['mountain','hill'].includes(o.type)).forEach(o=>{
+    if(o.amount<=0&&!o.built) return;
+    const a=Math.max(.3,o.amount/(o.maxAmount||100));
+    ctx.save();ctx.globalAlpha=a*.9;
+    ctx.font=(o.sz+2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.emoji,o.x,o.y);
+    if(o.amount<o.maxAmount*.4&&o.maxAmount>40&&!o.built){ctx.globalAlpha=.75;ctx.fillStyle='#f87171';ctx.font='7px JetBrains Mono,monospace';ctx.fillText(Math.round(o.amount),o.x,o.y+o.sz*.75);}
     ctx.restore();
+    if(o.type==='campfire'){
+      const g=ctx.createRadialGradient(o.x,o.y,5,o.x,o.y,50);
+      g.addColorStop(0,'rgba(251,146,36,.18)');g.addColorStop(1,'transparent');
+      ctx.save();ctx.fillStyle=g;ctx.beginPath();ctx.arc(o.x,o.y,50,0,Math.PI*2);ctx.fill();ctx.restore();
+    }
+    if(o.type==='house'||o.type==='tent'){
+      const g=ctx.createRadialGradient(o.x,o.y,5,o.x,o.y,40);
+      g.addColorStop(0,'rgba(251,191,36,.12)');g.addColorStop(1,'transparent');
+      ctx.save();ctx.fillStyle=g;ctx.beginPath();ctx.arc(o.x,o.y,40,0,Math.PI*2);ctx.fill();ctx.restore();
+    }
   });
 
-  // Animals
   animals.forEach(ani=>{
     ctx.save();
-    ctx.font=ani.size+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(ani.emoji,ani.x,ani.y);
-    // HP bar
-    const bw=ani.size*1.5;
-    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(ani.x-bw/2,ani.y-ani.size-6,bw,3);
-    ctx.fillStyle=ani.aggressive?'#f87171':'#4ade80';
-    ctx.fillRect(ani.x-bw/2,ani.y-ani.size-6,bw*(ani.hp/ani.maxHp),3);
+    if(ani.sleeping) ctx.globalAlpha=.7;
+    ctx.font=ani.sz+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ani.emoji,ani.x,ani.y);
+    if(ani.sleeping){ctx.font='10px serif';ctx.fillText('💤',ani.x+ani.sz*.7,ani.y-ani.sz*.5);}
+    const bw=ani.sz*1.6;
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(ani.x-bw/2,ani.y-ani.sz-4,bw,3);
+    ctx.fillStyle=ani.agg?'#f87171':'#86efac';ctx.fillRect(ani.x-bw/2,ani.y-ani.sz-4,bw*(ani.hp/ani.maxHp),3);
+    ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(ani.x-bw/2,ani.y-ani.sz,bw,2);
+    ctx.fillStyle='#7dd3fc';ctx.fillRect(ani.x-bw/2,ani.y-ani.sz,bw*(ani.stamina/ani.maxStam),2);
     ctx.restore();
   });
 
-  // Agent trails
   agents.forEach(ag=>{
     if(!ag.alive||ag.trail.length<2) return;
-    ctx.save();ctx.globalAlpha=.08;ctx.strokeStyle=ag.color;ctx.lineWidth=2;
+    ctx.save();ctx.globalAlpha=.06;ctx.strokeStyle=ag.color;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(ag.trail[0].x,ag.trail[0].y);
     ag.trail.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.restore();
   });
 
-  // Agents
   agents.forEach(ag=>{
-    if(!ag.alive){
-      ctx.save();ctx.globalAlpha=.3;ctx.font='20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('💀',ag.x,ag.y);ctx.restore();return;
+    if(!ag.alive){ctx.save();ctx.globalAlpha=.25;ctx.font='20px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('💀',ag.x,ag.y);ctx.fillStyle='#f87171';ctx.font='9px Syne,sans-serif';ctx.fillText(ag.name,ag.x,ag.y-22);ctx.restore();return;}
+    if(selected===ag.id){
+      ctx.save();ctx.globalAlpha=.06;ctx.fillStyle=ag.color;ctx.beginPath();ctx.arc(ag.x,ag.y,200,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=.14;ctx.strokeStyle=ag.color;ctx.lineWidth=.5;ctx.setLineDash([4,8]);ctx.beginPath();ctx.arc(ag.x,ag.y,200,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
     }
-
-    // Glow
-    const grad=ctx.createRadialGradient(ag.x,ag.y,2,ag.x,ag.y,25);
-    grad.addColorStop(0,ag.color+'40');grad.addColorStop(1,'transparent');
-    ctx.save();ctx.globalAlpha=.5;ctx.fillStyle=grad;
-    ctx.beginPath();ctx.arc(ag.x,ag.y,25,0,Math.PI*2);ctx.fill();ctx.restore();
-
-    // Body
-    ctx.beginPath();ctx.arc(ag.x,ag.y,ag.size,0,Math.PI*2);
-    ctx.fillStyle=ag.dark;ctx.fill();
+    const grd=ctx.createRadialGradient(ag.x,ag.y,2,ag.x,ag.y,26);
+    grd.addColorStop(0,ag.color+'40');grd.addColorStop(1,'transparent');
+    ctx.save();ctx.globalAlpha=.5;ctx.fillStyle=grd;ctx.beginPath();ctx.arc(ag.x,ag.y,26,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.beginPath();ctx.arc(ag.x,ag.y,ag.size,0,Math.PI*2);ctx.fillStyle=ag.dark;ctx.fill();
     ctx.strokeStyle=ag.color;ctx.lineWidth=selected===ag.id?2.5:1.5;ctx.stroke();
-    ctx.font=(ag.size+2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(ag.emoji,ag.x,ag.y);
-
-    // Name
-    ctx.fillStyle=ag.color;ctx.font='bold 9px Syne,sans-serif';ctx.textAlign='center';
-    ctx.fillText(ag.name,ag.x,ag.y-ag.size-7);
-
-    // HP+mood bar
-    const bw=ag.size*2.2;
-    const hpPct=ag.hp/100,moodPct=(ag.hunger+ag.thirst+ag.energy+ag.social)/400;
+    ctx.font=(ag.size+2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ag.emoji,ag.x,ag.y);
+    if(ag.illness||ag.injuries.length>0){ctx.font='10px serif';ctx.fillText(ag.illness?'🤒':'🩸',ag.x+ag.size,ag.y-ag.size);}
+    if(ag.tribe){ctx.font='9px serif';ctx.fillText('🏳️',ag.x-ag.size,ag.y-ag.size);}
+    ctx.fillStyle=ag.color;ctx.font='bold 9px Syne,sans-serif';ctx.textAlign='center';ctx.fillText(ag.name,ag.x,ag.y-ag.size-7);
+    const bw=ag.size*2.4;
     ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(ag.x-bw/2,ag.y+ag.size+4,bw,3);
-    ctx.fillStyle=hpPct>0.5?'#4ade80':hpPct>0.25?'#f59e0b':'#f87171';
-    ctx.fillRect(ag.x-bw/2,ag.y+ag.size+4,bw*hpPct,3);
-
-    // Speech bubble on canvas
-    if(ag.speechText&&ag.thinkTimer>200){
-      ctx.save();
-      ctx.font='9px JetBrains Mono,monospace';
-      const tw=Math.min(ctx.measureText(ag.speechText).width+14,160);
-      const tx=Math.min(Math.max(ag.x-tw/2,5),W-tw-5);
-      const ty=ag.y-ag.size-34;
-      ctx.fillStyle='rgba(22,31,48,.95)';
-      if(ctx.roundRect)ctx.roundRect(tx,ty-12,tw,18,5);else ctx.rect(tx,ty-12,tw,18);
-      ctx.fill();
-      ctx.strokeStyle=ag.color+'66';ctx.lineWidth=.5;ctx.stroke();
-      ctx.fillStyle=ag.color;ctx.textAlign='left';
-      const displayText=ag.speechText.length>22?ag.speechText.slice(0,22)+'…':ag.speechText;
-      ctx.fillText(displayText,tx+7,ty+1);
-      ctx.restore();
+    const hp=ag.hp/ag.maxHp;
+    ctx.fillStyle=hp>.6?'#86efac':hp>.3?'#fbbf24':'#f87171';ctx.fillRect(ag.x-bw/2,ag.y+ag.size+4,bw*hp,3);
+    if(ag.goalLabel){ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='7px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(ag.goalLabel,ag.x,ag.y+ag.size+13);}
+    if(selected===ag.id){
+      agents.forEach(b=>{
+        if(b.id===ag.id||!b.alive) return;
+        const r=ag.rel[b.id]; if(!r) return;
+        if(r.love>35){ctx.save();ctx.globalAlpha=r.love/300;ctx.strokeStyle='#86efac';ctx.lineWidth=1;ctx.setLineDash([3,7]);ctx.beginPath();ctx.moveTo(ag.x,ag.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+        if(r.anger>40){ctx.save();ctx.globalAlpha=r.anger/200;ctx.strokeStyle='#f87171';ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(ag.x,ag.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+      });
     }
   });
 
-  // Agent→Agent interaction lines
-  agents.forEach(ag=>{
-    if(!ag.alive||!ag.goal||ag.goal.type!=='agent') return;
-    const partner=ag.goal.ref;
-    if(!partner||!partner.alive) return;
-    ctx.save();ctx.globalAlpha=.2;ctx.strokeStyle=ag.color;ctx.lineWidth=1;
-    ctx.setLineDash([4,6]);
-    ctx.beginPath();ctx.moveTo(ag.x,ag.y);ctx.lineTo(partner.x,partner.y);ctx.stroke();
-    ctx.restore();
+  tribes.forEach(t=>{
+    const mems=t.members.map(id=>agents.find(a=>a.id===id)).filter(a=>a&&a.alive);
+    if(mems.length<2) return;
+    ctx.save();ctx.globalAlpha=.15;ctx.strokeStyle=t.color;ctx.lineWidth=.8;ctx.setLineDash([2,5]);
+    for(let i=0;i<mems.length;i++) for(let j=i+1;j<mems.length;j++){
+      ctx.beginPath();ctx.moveTo(mems[i].x,mems[i].y);ctx.lineTo(mems[j].x,mems[j].y);ctx.stroke();
+    }
+    ctx.setLineDash([]);ctx.restore();
   });
+
+  const h2=Math.floor(TICK/60/60)%24,m2=Math.floor(TICK/60)%60,d2=1+Math.floor(TICK/60/60/24);
+  const dayNight=isNight?'🌙 Gece':(isDusk?'🌆 Alacakaranlık':'☀️ Gündüz');
+  document.getElementById('wclock').textContent=`Gün ${d2} · ${String(h2).padStart(2,'0')}:${String(m2).padStart(2,'0')} · ${dayNight} · ${weather.icon}`;
 }
 
-// ── SIDEBAR ──────────────────────────────────────────────────────
 function renderSidebar(){
   const pane=document.getElementById('agents');
   pane.innerHTML=agents.map(ag=>{
-    if(!ag.alive) return`<div class="aCard" style="opacity:.4"><div class="aTop"><div class="aAva" style="font-size:18px">💀</div><div><div class="aName" style="color:#f87171">${ag.name} (Öldü)</div></div></div></div>`;
-    const fn=Math.round(ag.hunger),wn=Math.round(ag.thirst),en=Math.round(ag.energy),sn=Math.round(ag.social),hp=Math.round(ag.hp);
-    const fc=fn<25?'#f87171':fn<50?'#f59e0b':'#4ade80';
-    const wc=wn<25?'#f87171':wn<50?'#f59e0b':'#60a5fa';
-    const ec=en<25?'#f87171':en<50?'#f59e0b':'#f59e0b';
-    const sc=sn<25?'#f87171':sn<50?'#f59e0b':'#a78bfa';
-    const hc=hp<30?'#f87171':hp<60?'#f59e0b':'#4ade80';
-    const stateMap={idle:'Bekliyor',gather:'Topluyor',hunt:'Avlanıyor',craft:'Yapıyor',rest:'Dinleniyor',socialize:'Sosyalleşiyor',explore:'Keşfediyor'};
-    const invStr=Object.entries(ag.inventory).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(' · ')||'boş';
-    const crafted=ag.craftedItems.slice(-3).join(' ');
+    if(!ag.alive) return`<div class="aCard" style="opacity:.3"><div class="aTop"><span style="font-size:18px">💀</span><div><div class="aName" style="color:#f87171">${ag.name}</div><div class="aMeta">Hayatını kaybetti</div></div></div></div>`;
+    const fn=Math.round(ag.hunger),wn=Math.round(ag.thirst),en=Math.round(ag.energy),sn=Math.round(ag.social),hp=Math.round(ag.hp),wm=Math.round(ag.warmth);
+    const c=(v,lo,hi)=>v<lo?'#f87171':v<hi?'#fbbf24':'#86efac';
+    const inv=Object.entries(ag.inventory).filter(([,v])=>v>.5).map(([k,v])=>k+':'+Math.round(v)).join(' ');
+    const crafted=[...new Set(ag.craftedItems.filter(c=>c.length>2&&!['stick_tool','spear','bow','medicine','clothing','arrow','armor','iron_axe','stone_axe','basket'].includes(c)))].slice(-5).join(' ');
+    const emos=Object.entries(ag.emotions).filter(([,v])=>v>28).slice(0,4).map(([k,v])=>`<span class="chip">${k} ${Math.round(v)}</span>`).join('');
+    const rel=Object.entries(ag.rel).slice(0,4).map(([id,r])=>{const b=agents.find(a=>a.id==id);return b&&b.alive?`<span class="chip" style="font-size:6px">${b.name} ❤${Math.round(r.love)} 🤝${Math.round(r.trust)}${r.anger>20?' 😠'+Math.round(r.anger):''}</span>`:''}).join('');
+    const illB=ag.illness?`<span class="badge" style="background:rgba(248,113,113,.15);color:#f87171">🤒 ${ag.illness}</span>`:'';
+    const injB=ag.injuries.length?`<span class="badge" style="background:rgba(251,146,60,.12);color:#fb923c">🩸 ${ag.injuries.slice(-1)[0]}</span>`:'';
+    const tribeB=ag.tribe?`<span class="badge" style="background:rgba(94,234,212,.12);color:#5eead4">🏳️ ${tribes.find(t=>t.id===ag.tribe)?.name||''}</span>`:'';
+    const tier=[0,1,2,3].map(i=>`<div class="techPip${i<=ag.techTier?' on':''}"></div>`).join('');
+    const sm={idle:'Bekl',gather:'Topl',hunt:'Avl',farm:'Tarım',craft:'Yapıyor',rest:'Dinl',sleep:'Uyu',socialize:'Sos',explore:'Keşif',heal:'İyil',hide:'Saklan',flee:'Kaç',attack:'Saldır',befriend:'Dost'};
     return`<div class="aCard${selected===ag.id?' sel':''}" onclick="selectAgent(${ag.id})">
       <div class="aTop">
         <div class="aAva" style="background:${ag.dark};border:1.5px solid ${ag.color}">${ag.emoji}</div>
-        <div>
-          <div class="aName" style="color:${ag.color}">${ag.name}</div>
-          <div class="aState">${stateMap[ag.state]||ag.state}${ag.goal?.ref?(' → '+(ag.goal.ref.type||ag.goal.ref.name||'')):''}
-          ${crafted?'<br>Aletler: '+crafted:''}</div>
+        <div style="flex:1;min-width:0">
+          <div class="aName" style="color:${ag.color}">${ag.name} <span style="font-size:7px;color:var(--t3)">T${ag.techTier}</span></div>
+          <div class="aMeta">${sm[ag.state]||ag.state}${ag.goalLabel?' → '+ag.goalLabel:''}</div>
+          <div class="techBar">${tier}</div>
         </div>
       </div>
-      <div class="needGrid">
-        <div><div class="needItem">🍖 Açlık ${fn}%</div><div class="bar"><div class="bf" style="width:${fn}%;background:${fc}"></div></div></div>
-        <div><div class="needItem">💧 Su ${wn}%</div><div class="bar"><div class="bf" style="width:${wn}%;background:${wc}"></div></div></div>
-        <div><div class="needItem">⚡ Enerji ${en}%</div><div class="bar"><div class="bf" style="width:${en}%;background:${ec}"></div></div></div>
-        <div><div class="needItem">💬 Sosyal ${sn}%</div><div class="bar"><div class="bf" style="width:${sn}%;background:${sc}"></div></div></div>
-        <div><div class="needItem">❤️ HP ${hp}%</div><div class="bar"><div class="bf" style="width:${hp}%;background:${hc}"></div></div></div>
+      <div class="ng">
+        <div><div class="nl">🍖 Açlık ${fn}%</div><div class="bar"><div class="bf" style="width:${fn}%;background:${c(fn,20,50)}"></div></div></div>
+        <div><div class="nl">💧 Su ${wn}%</div><div class="bar"><div class="bf" style="width:${wn}%;background:${c(wn,20,50)}"></div></div></div>
+        <div><div class="nl">⚡ Enerji ${en}%</div><div class="bar"><div class="bf" style="width:${en}%;background:${c(en,20,50)}"></div></div></div>
+        <div><div class="nl">💬 Sosyal ${sn}%</div><div class="bar"><div class="bf" style="width:${sn}%;background:${c(sn,15,40)}"></div></div></div>
+        <div><div class="nl">🌡️ Sıcaklık ${wm}%</div><div class="bar"><div class="bf" style="width:${wm}%;background:${c(wm,15,40)}"></div></div></div>
+        <div><div class="nl">❤️ HP ${hp}%</div><div class="bar"><div class="bf" style="width:${hp}%;background:${c(hp,30,60)}"></div></div></div>
       </div>
-      <div class="inventory"><div class="invTitle">Envanter</div><div class="invItems">${invStr.split(' · ').map(i=>`<span class="invItem">${i}</span>`).join('')}</div></div>
+      <div class="chips">${illB}${injB}${tribeB}</div>
+      <div class="chips">${emos}</div>
+      ${crafted?`<div style="margin-top:4px"><div class="nl">Yapılar/Aletler</div><div class="chips">${crafted.split(' ').map(i=>`<span class="chip">${i}</span>`).join('')}</div></div>`:''}
+      ${inv?`<div style="margin-top:4px"><div class="nl">Envanter</div><div class="chips">${inv.split(' ').map(i=>`<span class="chip">${i}</span>`).join('')}</div></div>`:''}
+      ${rel?`<div style="margin-top:3px"><div class="nl">İlişkiler</div><div class="chips">${rel}</div></div>`:''}
     </div>`;
   }).join('');
+  const tp=document.getElementById('tribes');
+  if(tp.classList.contains('on')){
+    tp.innerHTML=tribes.length?tribes.map(t=>{
+      const mems=t.members.map(id=>agents.find(a=>a.id===id)).filter(a=>a);
+      return`<div class="aCard" style="border-color:${t.color}"><div class="aName" style="color:${t.color}">🏳️ ${t.name}</div><div class="aMeta">${mems.map(a=>`${a.emoji} ${a.name}${a.alive?'':' 💀'}`).join(' · ')}</div></div>`;
+    }).join(''):'<div style="padding:10px;font-size:9px;color:var(--t3)">Henüz kabile yok. Ajanların birbirleriyle yakın ilişki kurması gerek.</div>';
+  }
 }
-
 function selectAgent(id){selected=selected===id?-1:id;renderSidebar()}
 
+const chatMsgs=[];
+function addChatMsg(agentId,text,type){
+  const ag=agents.find(a=>a.id===agentId); if(!ag) return;
+  chatMsgs.push({name:ag.name,emoji:ag.emoji,color:ag.color,text,type,t:getTimeStr()});
+  if(chatMsgs.length>100) chatMsgs.splice(0,20);
+  renderChat();
+}
+function renderChat(){
+  const s=document.getElementById('chatScroll');
+  const atBottom=s.scrollHeight-s.clientHeight-s.scrollTop<50;
+  s.innerHTML=chatMsgs.slice(-35).map(m=>{
+    const bc=m.type==='speak'?'border-color:'+m.color+'55':'';
+    return`<div class="cm ${m.type}" style="${bc}">
+      <div class="ca" style="color:${m.color}">${m.emoji} ${m.name} ${m.type==='think'?'💭 düşünüyor':'💬 konuşuyor'}</div>
+      <div class="ct">${m.text}</div>
+      <div class="ctime">${m.t}</div>
+    </div>`;
+  }).join('');
+  if(atBottom) s.scrollTop=s.scrollHeight;
+}
+
+const logs=[];
 function addLog(agentId,msg){
   const ag=agentId!==null?agents.find(a=>a.id===agentId):null;
-  const name=ag?ag.name:'DÜNYA';
-  const color=ag?ag.color:'#64748b';
-  const t=getTimeStr();
-  logs.unshift({name,msg,color,t});
-  if(logs.length>60) logs.pop();
+  logs.unshift({name:ag?ag.name:'DÜNYA',color:ag?ag.color:'#4a6a8a',msg,t:getTimeStr()});
+  if(logs.length>80) logs.pop();
   const pane=document.getElementById('log');
-  pane.innerHTML=logs.slice(0,20).map(l=>
-    `<div class="logEntry"><span class="lName" style="color:${l.color}">${l.name}</span> ${l.msg}<span class="lTime">${l.t}</span></div>`
-  ).join('');
+  if(pane.classList.contains('on')) pane.innerHTML=logs.slice(0,30).map(l=>`<div class="le"><span class="ln" style="color:${l.color}">${l.name}</span> ${l.msg}<span class="lt">${l.t}</span></div>`).join('');
 }
-
-function getTimeStr(){
-  const s=Math.floor(TICK/60);
-  return String(Math.floor(s/3600)%24).padStart(2,'0')+':'+String(Math.floor(s/60)%60).padStart(2,'0');
-}
+function getTimeStr(){const s=Math.floor(TICK/60);return String(Math.floor(s/3600)%24).padStart(2,'0')+':'+String(Math.floor(s/60)%60).padStart(2,'0')}
 
 function showTab(id){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['agents','mind','log'][i]===id));
-  document.querySelectorAll('.tabPane').forEach(p=>p.classList.toggle('on',p.id===id));
+  const tabs=['agents','tribes','log'];
+  document.querySelectorAll('.stab').forEach((t,i)=>t.classList.toggle('on',tabs[i]===id));
+  document.querySelectorAll('.spane').forEach(p=>p.classList.toggle('on',p.id===id));
+  if(id==='log') addLog(null,' ');
+  if(id==='tribes') renderSidebar();
 }
+function setSpd(s){SPD=s;['s1','s3','s8'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('s'+s).classList.add('on');}
 
-function setSpd(s){
-  SPD=s;
-  ['s1','s2','s5'].forEach(id=>document.getElementById(id).classList.remove('on'));
-  document.getElementById('s'+s).classList.add('on');
-}
-
-function dist(a,b){return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2)}
-
-function updateTime(){
-  const s=Math.floor(TICK/60);
-  const d=1+Math.floor(s/86400);
-  const h=String(Math.floor(s/3600)%24).padStart(2,'0');
-  const m=String(Math.floor(s/60)%60).padStart(2,'0');
-  document.getElementById('worldTime').textContent=`Gün ${d} · ${h}:${m}`;
-}
-
-// ── MAIN LOOP ─────────────────────────────────────────────────────
-let sbTimer=0,dlgTimer=0;
+let sbTimer=0;
 function loop(){
   for(let i=0;i<SPD;i++){
     agents.forEach(ag=>updateAgent(ag));
     animals.forEach(ani=>updateAnimal(ani));
-    updateObjects();
-    TICK++;
-    dlgTimer++;
-    if(dlgTimer>=4){
-      dialogues.forEach(d=>d.timer--);
-      dialogues=dialogues.filter(d=>d.timer>0);
-      dlgTimer=0;
-    }
+    updateObjects(); updateWeather(); decayEmotions(); TICK++;
   }
-  draw();
-  sbTimer++;
-  if(sbTimer>=12){renderSidebar();renderMindPane();renderDialogues();updateTime();sbTimer=0}
+  draw(); sbTimer++;
+  if(sbTimer>=14){renderSidebar();sbTimer=0}
   requestAnimationFrame(loop);
 }
 
-// ── START ─────────────────────────────────────────────────────────
-canvas.addEventListener('click',e=>{
-  const r=canvas.getBoundingClientRect();
-  const mx=e.clientX-r.left,my=e.clientY-r.top;
-  agents.forEach(ag=>{if(dist(ag,{x:mx,y:my})<ag.size+10){selected=ag.id}});
-  renderSidebar();
-});
-window.addEventListener('resize',()=>{resize()});
-resize();
-initAgents();
-spawnObjects();
-spawnAnimals();
-addLog(null,'🌍 Özgür Dünya başlatıldı — 5 ajan, '+animals.length+' hayvan, '+objects.length+' doğal kaynak aktif');
+function resize(){const el=document.getElementById('worldWrap');W=el.clientWidth;H=el.clientHeight;canvas.width=W;canvas.height=H;}
+window.addEventListener('resize',resize);
+resize(); buildToolBar(); initAgents(); initObjects(); initAnimals(); setTool('none');
+addLog(null,'🌍 AI Dünyası v4 — Gemini AI · '+agents.length+' ajan, '+animals.length+' hayvan, '+objects.length+' nesne');
+addChatMsg(0,'Yeni bir dünyada uyanıyorum... Önce sopa ve taş toplamalıyım.','think');
+addChatMsg(1,'Başkaları görüyorum. Belki bir kabile kurabiliriz.','think');
+addChatMsg(2,'Tarım için araç gerek. Önce taş balta yapmalıyım.','think');
 renderSidebar();
-renderMindPane();
-
-// Trigger first thinks with delay
-setTimeout(()=>{agents.forEach((ag,i)=>setTimeout(()=>agentThink(ag),i*1200))},2000);
+setTimeout(()=>{agents.forEach((ag,i)=>setTimeout(()=>agentThink(ag),i*1500))},1500);
 loop();
 </script>
 </body>
