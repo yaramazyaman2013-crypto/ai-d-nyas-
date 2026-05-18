@@ -1170,17 +1170,9 @@ function draw(){
     ctx.globalAlpha=1;
   }
   // ─── REAL TERRAIN ───
-  // Grass patches (subtle, deterministic noise)
-  ctx.save();
-  for(let i=0;i<24;i++){
-    const gx=((i*157.3)%1)*W, gy=((i*89.7)%1)*H;
-    const rr=80+((i*53.7)%1)*60;
-    const grd=ctx.createRadialGradient(gx,gy,5,gx,gy,rr);
-    grd.addColorStop(0,isNight?'rgba(20,55,30,.18)':'rgba(40,90,45,.12)');
-    grd.addColorStop(1,'transparent');
-    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(gx,gy,rr,0,Math.PI*2);ctx.fill();
-  }
-  ctx.restore();
+  // Flat ground tint (grass color, no glows)
+  ctx.fillStyle=isNight?'rgba(15,40,22,.35)':'rgba(28,60,30,.25)';
+  ctx.fillRect(0,0,W,H);
   // Water bodies — actual blue blobs
   objects.filter(o=>['lake','pond'].includes(o.type)).forEach(o=>{
     const r=o.sz*1.8*(o.type==='lake'?1.4:1);
