@@ -196,26 +196,28 @@ function triggerDisaster(type){
 }
 
 const OBJ={
-  tree:     {emoji:'🌳',sz:20,res:'wood',max:100,regen:.003},
-  stone:    {emoji:'🪨',sz:14,res:'stone',max:80,regen:0},
+  tree:     {emoji:'🌳',sz:20,res:'wood',max:120,regen:.012},
+  sapling:  {emoji:'🌱',sz:8,res:null,max:100,regen:.04,sapling:true},
+  stone:    {emoji:'🪨',sz:14,res:'stone',max:80,regen:.002},
   lake:     {emoji:'💧',sz:26,res:'water',max:300,regen:.025},
   farm:     {emoji:'🌾',sz:16,res:'food',max:100,regen:.012},
-  berry:    {emoji:'🫐',sz:10,res:'food',max:50,regen:.01},
-  mushroom: {emoji:'🍄',sz:9,res:'food',max:40,regen:.007},
-  beehive:  {emoji:'🐝',sz:10,res:'honey',max:60,regen:.004},
+  berry:    {emoji:'🫐',sz:10,res:'food',max:60,regen:.025},
+  mushroom: {emoji:'🍄',sz:9,res:'food',max:45,regen:.018},
+  beehive:  {emoji:'🐝',sz:10,res:'honey',max:60,regen:.012},
   crops:    {emoji:'🌽',sz:14,res:'food',max:120,regen:.02},
   mountain: {emoji:'⛰️',sz:34,res:'stone',max:999,regen:0,blocking:true},
   hill:     {emoji:'🏔️',sz:24,res:'stone',max:200,regen:0},
   pond:     {emoji:'🌊',sz:18,res:'water',max:120,regen:.015},
   cave:     {emoji:'🕳️',sz:28,res:'shelter',max:500,regen:.002,shelter:true},
   iron:     {emoji:'⛓️',sz:13,res:'iron',max:60,regen:0},
-  fiber_plant:{emoji:'🌿',sz:10,res:'fiber',max:40,regen:.012},
+  fiber_plant:{emoji:'🌿',sz:10,res:'fiber',max:50,regen:.022},
   campfire: {emoji:'🔥',sz:16,res:'warmth',max:200,regen:-.015,built:true},
   tent:     {emoji:'⛺',sz:18,res:'shelter',max:300,regen:0,built:true,shelter:true},
   house:    {emoji:'🏠',sz:24,res:'shelter',max:800,regen:.001,built:true,shelter:true},
   wall:     {emoji:'🧱',sz:14,res:null,max:200,regen:0,built:true,blocking:true},
   storage:  {emoji:'📦',sz:16,res:null,max:400,regen:0,built:true,storage:true},
   trap:     {emoji:'🪤',sz:12,res:null,max:50,regen:0,built:true,trap:true},
+  den:      {emoji:'🕳️',sz:22,res:null,max:100,regen:0,lair:true},
 };
 let objects=[];
 
@@ -243,7 +245,7 @@ function initObjects(){
   [[.15,.22],[.85,.22],[.18,.72],[.78,.78]].forEach(([rx,ry])=>{
     objects.push({...OBJ.cave,type:'cave',x:rx*W,y:ry*H,amount:500,maxAmount:500,id:uid()});
   });
-  const counts={tree:24,stone:14,lake:5,pond:6,farm:5,berry:14,mushroom:12,beehive:5,iron:6,fiber_plant:14};
+  const counts={tree:32,stone:18,lake:5,pond:6,farm:5,berry:18,mushroom:16,beehive:6,iron:7,fiber_plant:18};
   for(const[t,n] of Object.entries(counts)){
     for(let i=0;i<n;i++){
       objects.push({...OBJ[t],type:t,x:60+Math.random()*(W-120),y:80+Math.random()*(H-140),amount:OBJ[t].max,maxAmount:OBJ[t].max,id:uid()});
@@ -260,7 +262,47 @@ function initAnimals(){
 
 function spawnAnimal(type){
   const d=ANIM[type];
-  animals.push({...d,type,x:60+Math.random()*(W-120),y:80+Math.random()*(H-140),vx:(Math.random()-.5)*d.spd,vy:(Math.random()-.5)*d.spd,hp:d.hp,maxHp:d.hp,stamina:d.stam,maxStam:d.stam,sleeping:false,sleepTicks:0,wander:Math.floor(Math.random()*200),id:uid()});
+  const a={...d,type,x:60+Math.random()*(W-120),y:80+Math.random()*(H-140),vx:(Math.random()-.5)*d.spd,vy:(Math.random()-.5)*d.spd,hp:d.hp,maxHp:d.hp,stamina:d.stam,maxStam:d.stam,sleeping:false,sleepTicks:0,wander:Math.floor(Math.random()*200),id:uid()};
+  // Fish must spawn inside a water body and stay there
+  if(type==='fish'){
+    const water=objects.filter(o=>['lake','pond'].includes(o.type));
+    if(water.length){
+      const w=water[Math.floor(Math.random()*water.length)];
+      a.x=w.x+(Math.random()-.5)*w.sz*1.2;
+      a.y=w.y+(Math.random()-.5)*w.sz*1.2;
+      a.waterId=w.id;
+    } else { return; } // no water → don't spawn fish
+  }
+  // Bears/wolves get dens (lairs)
+  if(type==='bear'||type==='wolf'){
+    let den=objects.find(o=>o.type==='den'&&o.lairType===type&&!o.occupied);
+    if(!den){
+      // Create a new den at the animal's spawn location, near a mountain/hill if any
+      den={emoji:type==='bear'?'🕳️':'🦴',type:'den',sz:22,res:null,max:100,maxAmount:100,amount:100,regen:0,built:false,lairType:type,occupied:false,x:a.x,y:a.y,id:uid()};
+      objects.push(den);
+    }
+    a.denId=den.id;
+    den.occupied=true;
+    a.x=den.x+(Math.random()-.5)*30;
+    a.y=den.y+(Math.random()-.5)*30;
+  }
+  animals.push(a);
+}
+
+// Respawn timers
+let respawnTimer=0;
+function maybeRespawn(){
+  respawnTimer-=SPD;
+  if(respawnTimer>0) return;
+  respawnTimer=1200+Math.random()*1800; // every ~30-50 sec game-time
+  const targets={rabbit:8,deer:5,fish:6,wolf:3,bear:2,eagle:2};
+  for(const[type,target] of Object.entries(targets)){
+    const cnt=animals.filter(a=>a.type===type).length;
+    if(cnt<target&&Math.random()<.7){
+      spawnAnimal(type);
+      addLog(null,(ANIM[type]?.emoji||'?')+' yeni '+type+' doğdu');
+    }
+  }
 }
 
 const ADEFS=[
@@ -311,6 +353,7 @@ const RECIPES={
   spear:     {tier:0,n:{wood:2,stone:1},g:'🗡️Mızrak',item:'spear',fx:{hunt:1}},
   stone_axe: {tier:0,n:{wood:1,stone:2},g:'🪓Taş Balta',item:'stone_axe',fx:{gatherWood:2}},
   basket:    {tier:0,n:{fiber:3},g:'🧺Sepet',item:'basket',fx:{carry:1}},
+  plant_tree:{tier:0,n:{wood:1},g:'🌱Fidan',item:null,fx:{place:'sapling'}},
   campfire:  {tier:1,n:{wood:3,stone:2},g:'🔥Kamp Ateşi',item:null,fx:{place:'campfire'}},
   bow:       {tier:1,n:{wood:2,fiber:3},need:['stone_axe'],g:'🏹Yay',item:'bow',fx:{hunt:2}},
   arrow:     {tier:1,n:{wood:1,stone:1},need:['bow'],g:'🎯Ok',item:'arrow'},
@@ -351,6 +394,10 @@ function needsRecipe(ag,key){
   if(key==='farm_plot')return builtCount('crops')<4;
   if(key==='storage')  return builtCount('storage')<2&&!ag.builtThisLife.includes('storage');
   if(key==='trap')     return builtCount('trap')<3;
+  if(key==='plant_tree'){
+    const trees=objects.filter(o=>['tree','sapling'].includes(o.type)).length;
+    return trees<14&&(ag.inventory.wood||0)>=4; // only plant if wood is abundant and forest is thin
+  }
   return true;
 }
 
@@ -565,10 +612,25 @@ function autoPickGoal(ag){
       if(f){ag.goal={type:'obj',ref:f};ag.state='gather';ag.goalLabel='yemek';ambientThought('Aç kaldım, yemek bulmalıyım.');return;}
     }
   }
-  // 2. Sığınak yoksa öncelikle barınak için malzeme veya inşa
-  if(!agentHasOwnShelter(ag)&&!objects.some(o=>o.shelter&&o.type==='cave'&&dist(ag,o)<400)){
-    if(craftableNow(ag).includes('tent')){tryCraft(ag,'tent');ambientThought('Barınak şart, çadır kuruyorum.');return;}
-    if(craftableNow(ag).includes('campfire')){tryCraft(ag,'campfire');ambientThought('Kamp ateşi yakmalıyım.');return;}
+  // 2a. Düşük enerji/sıcaklıkta hemen sığınağa git
+  if((ag.energy<40||ag.warmth<35)){
+    const shelter=objects.filter(o=>o.shelter).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+    if(shelter&&dist(ag,shelter)<500){
+      ag.goal={type:'obj',ref:shelter};ag.state='rest';ag.goalLabel='sığınak:'+shelter.type;
+      ambientThought((ag.warmth<35?'Çok üşüyorum, ':'Yorgunum, ')+'sığınağa gidiyorum.');
+      return;
+    }
+  }
+  // 2b. Sığınak yoksa inşa et — öncelikli
+  if(!agentHasOwnShelter(ag)){
+    if(craftableNow(ag).includes('house')){tryCraft(ag,'house');ambientThought('Ev kuruyorum.');return;}
+    if(craftableNow(ag).includes('tent')){tryCraft(ag,'tent');ambientThought('Çadır kurmalıyım.');return;}
+    if(craftableNow(ag).includes('campfire')&&builtCount('campfire')<1){tryCraft(ag,'campfire');ambientThought('Önce kamp ateşi yakacağım.');return;}
+    // Need materials for tent? Gather wood/fiber
+    if(hasItem(ag,'spear')&&!craftableNow(ag).includes('tent')&&(ag.inventory.wood||0)<5){
+      const tree=objects.filter(o=>o.type==='tree'&&o.amount>5).sort((a,b)=>dist(ag,a)-dist(ag,b))[0];
+      if(tree){ag.goal={type:'obj',ref:tree};ag.state='gather';ag.goalLabel='çadır:odun';ambientThought('Çadır için odun lazım.');return;}
+    }
   }
   // 3. Silah yoksa mızrak için kaynak/craft
   if(!hasItem(ag,'spear')){
@@ -825,7 +887,13 @@ function updateAgent(ag){
       if(d<30) ag.goal=null;
     } else if(g.type==='craft'){tryCraft(ag,g.key);ag.goal=null;}
     else{ag.vx+=(Math.random()-.5)*.14*SPD;ag.vy+=(Math.random()-.5)*.14*SPD;}
-  } else {ag.vx+=(Math.random()-.5)*.09*SPD;ag.vy+=(Math.random()-.5)*.09*SPD;}
+  } else {
+    // No goal — keep idle counter, force a new goal sooner rather than wandering forever
+    ag.idleTicks=(ag.idleTicks||0)+SPD;
+    if(ag.idleTicks>40){ag.idleTicks=0;autoPickGoal(ag);}
+    ag.vx+=(Math.random()-.5)*.09*SPD;ag.vy+=(Math.random()-.5)*.09*SPD;
+  }
+  if(ag.goal) ag.idleTicks=0;
 
   if(ag.tribe){
     const t=tribes.find(t=>t.id===ag.tribe);
@@ -864,8 +932,8 @@ function gatherFrom(ag,obj){
     ag.goal=null; return;
   }
   if(!obj.res){ag.goal=null;return;}
-  const axe=hasItem(ag,'iron_axe')?3:hasItem(ag,'stone_axe')?2:1;
-  const take=Math.min(1.4*SPD*(obj.type==='tree'?axe:1),obj.amount);
+  const axe=hasItem(ag,'iron_axe')?2.5:hasItem(ag,'stone_axe')?1.5:.7;
+  const take=Math.min(.7*SPD*(obj.type==='tree'?axe:1),obj.amount);
   obj.amount=Math.max(0,obj.amount-take);
   const mat=obj.res;
   const prev=Math.floor(ag.inventory[mat]||0);
@@ -922,7 +990,28 @@ function huntAnimal(ag,animal){
 }
 
 function updateAnimal(ani){
-  if(ani.hp<=0){ani.hp=0;ani._dead=true;return;}
+  if(ani.hp<=0){ani.hp=0;ani._dead=true;
+    // Free up the den
+    if(ani.denId){const d=objects.find(o=>o.id===ani.denId);if(d)d.occupied=false;}
+    return;
+  }
+  // Fish: clamp to water body
+  if(ani.type==='fish'){
+    const w=objects.find(o=>o.id===ani.waterId);
+    if(!w||w.amount<=0){ani._dead=true;return;}
+    const d=dist(ani,w);
+    if(d>w.sz*1.1){
+      // Push back toward water center
+      const dx=w.x-ani.x,dy=w.y-ani.y,dd=Math.sqrt(dx*dx+dy*dy)||1;
+      ani.vx=dx/dd*ani.spd*SPD; ani.vy=dy/dd*ani.spd*SPD;
+    } else {
+      ani.vx+=(Math.random()-.5)*.2*SPD; ani.vy+=(Math.random()-.5)*.2*SPD;
+      const v=Math.sqrt(ani.vx**2+ani.vy**2);
+      if(v>ani.spd*SPD){ani.vx=ani.vx/v*ani.spd*SPD;ani.vy=ani.vy/v*ani.spd*SPD;}
+    }
+    ani.x+=ani.vx; ani.y+=ani.vy;
+    return;
+  }
   if(ani.sleeping){
     ani.sleepTicks-=SPD;
     ani.vx*=.9;ani.vy*=.9;
@@ -966,7 +1055,30 @@ function updateAnimal(ani){
     } else{ani.vx=dx/d*ani.spd*SPD*spdMul;ani.vy=dy/d*ani.spd*SPD*spdMul;}
   } else if(ani.wander<=0){
     ani.wander=60+Math.floor(Math.random()*130);
-    ani.vx=(Math.random()-.5)*ani.spd*SPD; ani.vy=(Math.random()-.5)*ani.spd*SPD;
+    // Predators with dens — at night return home, sleep
+    const hour=Math.floor(TICK/60/60)%24;
+    const isNight=hour<6||hour>20;
+    if(ani.denId&&isNight){
+      const den=objects.find(o=>o.id===ani.denId);
+      if(den){
+        const dx=den.x-ani.x,dy=den.y-ani.y,dd=Math.sqrt(dx*dx+dy*dy)||1;
+        if(dd>30){ani.vx=dx/dd*ani.spd*SPD;ani.vy=dy/dd*ani.spd*SPD;}
+        else {ani.sleeping=true;ani.sleepTicks=600;ani.vx=ani.vy=0;}
+        return;
+      }
+    }
+    // Otherwise wander but bias toward den area
+    if(ani.denId&&Math.random()<.4){
+      const den=objects.find(o=>o.id===ani.denId);
+      if(den&&dist(ani,den)>200){
+        const dx=den.x-ani.x,dy=den.y-ani.y,dd=Math.sqrt(dx*dx+dy*dy)||1;
+        ani.vx=dx/dd*ani.spd*SPD*.6; ani.vy=dy/dd*ani.spd*SPD*.6;
+      } else {
+        ani.vx=(Math.random()-.5)*ani.spd*SPD; ani.vy=(Math.random()-.5)*ani.spd*SPD;
+      }
+    } else {
+      ani.vx=(Math.random()-.5)*ani.spd*SPD; ani.vy=(Math.random()-.5)*ani.spd*SPD;
+    }
   }
   ani.x+=ani.vx; ani.y+=ani.vy;
   if(ani.x<15){ani.x=15;ani.vx*=-.8} if(ani.x>W-15){ani.x=W-15;ani.vx*=-.8}
@@ -979,8 +1091,23 @@ function updateObjects(){
   objects.forEach(o=>{
     if(o.regen>0&&o.amount<o.maxAmount) o.amount=Math.min(o.maxAmount,o.amount+o.regen*SPD);
     if(o.regen<0) o.amount=Math.max(0,o.amount+o.regen*SPD);
+    // Saplings grow into full trees
+    if(o.sapling&&o.amount>=o.maxAmount){
+      o.type='tree';o.sapling=false;o.emoji='🌳';o.sz=20;o.res='wood';o.regen=.012;o.maxAmount=120;o.amount=80;
+    }
   });
   objects=objects.filter(o=>!(o.type==='campfire'&&o.amount<=0));
+  // Trees naturally spread when many are nearby (slow)
+  if(Math.random()<.002*SPD){
+    const trees=objects.filter(o=>o.type==='tree');
+    if(trees.length>3&&trees.length<35){
+      const p=trees[Math.floor(Math.random()*trees.length)];
+      const nx=p.x+(Math.random()-.5)*120, ny=p.y+(Math.random()-.5)*120;
+      if(nx>40&&nx<W-40&&ny>60&&ny<H-40){
+        objects.push({...OBJ.sapling,type:'sapling',x:nx,y:ny,amount:5,maxAmount:100,sapling:true,id:uid()});
+      }
+    }
+  }
 }
 
 const TOOLS=[
@@ -1042,7 +1169,48 @@ function draw(){
     ctx.globalAlpha=.9;ctx.font='28px serif';ctx.textAlign='center';ctx.fillText('☀️',W-60,55);
     ctx.globalAlpha=1;
   }
-  ctx.strokeStyle='rgba(20,40,55,.3)';ctx.lineWidth=.5;
+  // ─── REAL TERRAIN ───
+  // Grass patches (subtle, deterministic noise)
+  ctx.save();
+  for(let i=0;i<24;i++){
+    const gx=((i*157.3)%1)*W, gy=((i*89.7)%1)*H;
+    const rr=80+((i*53.7)%1)*60;
+    const grd=ctx.createRadialGradient(gx,gy,5,gx,gy,rr);
+    grd.addColorStop(0,isNight?'rgba(20,55,30,.18)':'rgba(40,90,45,.12)');
+    grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(gx,gy,rr,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  // Water bodies — actual blue blobs
+  objects.filter(o=>['lake','pond'].includes(o.type)).forEach(o=>{
+    const r=o.sz*1.8*(o.type==='lake'?1.4:1);
+    ctx.save();
+    // Outer water rim
+    const grd=ctx.createRadialGradient(o.x,o.y,r*.2,o.x,o.y,r);
+    grd.addColorStop(0,isNight?'rgba(40,80,130,.85)':'rgba(70,140,200,.75)');
+    grd.addColorStop(.7,isNight?'rgba(30,60,110,.6)':'rgba(60,130,190,.5)');
+    grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(o.x,o.y,r,0,Math.PI*2);ctx.fill();
+    // Water ripples
+    ctx.strokeStyle=isNight?'rgba(100,140,200,.3)':'rgba(160,200,240,.4)';
+    ctx.lineWidth=1;
+    for(let k=0;k<3;k++){
+      const phase=(TICK*.02+k*2.1)%6;
+      ctx.globalAlpha=Math.max(0,.5-phase*.08);
+      ctx.beginPath();ctx.arc(o.x,o.y,r*.3+phase*8,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.restore();
+  });
+  // Path/dirt under settlements (campfire, tent, house)
+  objects.filter(o=>['campfire','tent','house','wall','storage'].includes(o.type)).forEach(o=>{
+    ctx.save();
+    const grd=ctx.createRadialGradient(o.x,o.y,5,o.x,o.y,o.sz*2);
+    grd.addColorStop(0,'rgba(100,80,55,.25)');
+    grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(o.x,o.y,o.sz*2,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+  ctx.strokeStyle='rgba(20,40,55,.18)';ctx.lineWidth=.5;
   const gs=65;
   for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
   for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
@@ -1273,6 +1441,7 @@ function loop(){
     agents.forEach(ag=>updateAgent(ag));
     animals.forEach(ani=>updateAnimal(ani));
     animals=animals.filter(a=>!a._dead);
+    maybeRespawn();
     updateObjects(); updateWeather(); decayEmotions(); TICK++;
   }
   draw(); sbTimer++;
@@ -1289,7 +1458,7 @@ addChatMsg(1,'Başkaları görüyorum. Belki bir kabile kurabiliriz.','think');
 addChatMsg(2,'Tarım için araç gerek. Önce taş balta yapmalıyım.','think');
 renderSidebar();
 // Give each agent a small starter inventory so they're not helpless on day 1
-agents.forEach(ag=>{ag.inventory.wood=2;ag.inventory.stone=1;ag.inventory.fiber=2;});
+agents.forEach(ag=>{ag.inventory.wood=4;ag.inventory.stone=2;ag.inventory.fiber=3;});
 // Stagger thinks more tightly so all 5 agents get moving
 setTimeout(()=>{agents.forEach((ag,i)=>setTimeout(()=>agentThink(ag),i*900))},800);
 // Also nudge each agent with an autonomous goal at start
