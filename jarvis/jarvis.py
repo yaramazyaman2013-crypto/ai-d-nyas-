@@ -44,17 +44,64 @@ def _auto_install():
     node_modules = os.path.join(os.path.dirname(__file__), "node_modules")
     pkg_json = os.path.join(os.path.dirname(__file__), "package.json")
     if os.path.exists(pkg_json) and not os.path.exists(node_modules):
-        try:
-            print("Minecraft botu için Node.js paketleri kuruluyor...")
-            subprocess.check_call(
-                ["npm", "install", "--silent"],
-                cwd=os.path.dirname(__file__)
-            )
-            print("✓ npm kurulumu tamamlandı.")
-        except FileNotFoundError:
-            print("⚠ Node.js bulunamadı — Minecraft botu için nodejs kur.")
-        except subprocess.CalledProcessError:
-            print("⚠ npm install başarısız — Minecraft botu çalışmayabilir.")
+        # Node.js'i PATH'te veya yaygın Windows klasörlerinde ara
+        node_exe = _find_node()
+        npm_exe  = _find_npm()
+        if not npm_exe:
+            print("⚠ Node.js/npm bulunamadı — Minecraft botu olmadan devam.")
+            print("  Çözüm: bilgisayarı yeniden başlat veya Node.js'i tekrar kur (nodejs.org)")
+        else:
+            try:
+                print("Minecraft botu için Node.js paketleri kuruluyor...")
+                subprocess.check_call(
+                    [npm_exe, "install", "--silent"],
+                    cwd=os.path.dirname(__file__)
+                )
+                print("✓ npm kurulumu tamamlandı.")
+            except subprocess.CalledProcessError:
+                print("⚠ npm install başarısız — Minecraft botu çalışmayabilir.")
+
+
+def _find_node() -> str | None:
+    """Node.js çalıştırılabilir dosyasını PATH'te veya yaygın klasörlerde bul."""
+    import shutil
+    if shutil.which("node"):
+        return "node"
+    candidates = []
+    if sys.platform.startswith("win"):
+        pf  = os.environ.get("ProgramFiles", "C:\\Program Files")
+        pf86= os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
+        appdata = os.environ.get("APPDATA", "")
+        local   = os.environ.get("LOCALAPPDATA", "")
+        candidates = [
+            os.path.join(pf,   "nodejs", "node.exe"),
+            os.path.join(pf86, "nodejs", "node.exe"),
+            os.path.join(appdata, "nvm", "current", "node.exe"),
+            os.path.join(local,   "Programs", "nodejs", "node.exe"),
+        ]
+    for c in candidates:
+        if os.path.isfile(c):
+            # Klasörü PATH'e ekle ki npm da bulunabilsin
+            os.environ["PATH"] = os.path.dirname(c) + os.pathsep + os.environ.get("PATH", "")
+            return c
+    return None
+
+
+def _find_npm() -> str | None:
+    """npm'i PATH'te veya yaygın klasörlerde bul."""
+    import shutil
+    _find_node()  # önce node'u bul, PATH güncellensin
+    if shutil.which("npm"):
+        return "npm"
+    if sys.platform.startswith("win"):
+        # npm.cmd Windows'ta
+        if shutil.which("npm.cmd"):
+            return "npm.cmd"
+        pf = os.environ.get("ProgramFiles", "C:\\Program Files")
+        npm_cmd = os.path.join(pf, "nodejs", "npm.cmd")
+        if os.path.isfile(npm_cmd):
+            return npm_cmd
+    return None
 
 
 def _pause_on_crash(stage: str, exc: BaseException):
