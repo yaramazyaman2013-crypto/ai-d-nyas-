@@ -92,6 +92,14 @@ def _gemini_tools_schema():
     return [{"function_declarations": decls}]
 
 
+# Gemini model öncelik sırası: birincisi kota aşarsa sonrakine geçer
+_GEMINI_FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+]
+
+
 class _GeminiBrain:
     def __init__(self):
         import google.generativeai as genai
@@ -100,25 +108,88 @@ class _GeminiBrain:
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY ortam değişkeni eksik.")
         genai.configure(api_key=api_key)
-        model_name = os.getenv("JARVIS_MODEL", "gemini-2.0-flash")
         self._genai = genai
-        self._model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=SYSTEM,
-            tools=_gemini_tools_schema(),
-        )
+        self._api_key = api_key
+
+        # .env'de model belirtilmişse onu kullan, yoksa otomatik dene
+        env_model = os.getenv("JARVIS_MODEL", "")
+        self._model_list = [env_model] + _GEMINI_FALLBACK_MODELS if env_model else _GEMINI_FALLBACK_MODELS
+        self._model_list = list(dict.fromkeys(self._model_list))  # tekrarları kaldır
+
+        self._model_name = None
+        self._model = None
+        self._chat = None
+
+        # Çalışan modeli başlangıçta bul
+        self._init_model()
+
         # Hafızadan geçmiş yükle
         past = memory.load()
         history = []
         for m in past:
             role = "user" if m["role"] == "user" else "model"
             history.append({"role": role, "parts": [m["content"]]})
-        self._chat = self._model.start_chat(history=history)
-        self.history = past  # kayıt için
+        if self._model:
+            self._chat = self._model.start_chat(history=history)
+        self.history = past
+
+    def _init_model(self, skip_models=None):
+        """Çalışan bir Gemini modeli bul ve başlat."""
+        skip = set(skip_models or [])
+        for model_name in self._model_list:
+            if model_name in skip:
+                continue
+            try:
+                self._model = self._genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=SYSTEM,
+                    tools=_gemini_tools_schema(),
+                )
+                self._model_name = model_name
+                print(f"[brain] Gemini modeli: {model_name}")
+                return
+            except Exception:
+                continue
+        raise RuntimeError(
+            "Gemini API anahtarın çalışmıyor veya tüm modeller kota aşımında.\n"
+            "Çözüm:\n"
+            "  1. Yeni bir API anahtarı al → https://aistudio.google.com/apikey\n"
+            "  2. jarvis/.env dosyasında GEMINI_API_KEY satırını yeni anahtarla güncelle\n"
+            "  3. Veya ücretsiz kota doldu ise yarın tekrar dene (günlük limit sıfırlanır)"
+        )
 
     def think(self, user_text: str) -> str:
         self.history.append({"role": "user", "content": user_text})
-        response = self._chat.send_message(user_text)
+
+        # Kota aşımında sonraki modele geçerek tekrar dene
+        tried = set()
+        while True:
+            try:
+                response = self._chat.send_message(user_text)
+                break
+            except Exception as e:
+                err = str(e)
+                if "429" in err or "RESOURCE_EXHAUSTED" in err or "quota" in err.lower():
+                    tried.add(self._model_name)
+                    remaining = [m for m in self._model_list if m not in tried]
+                    if remaining:
+                        print(f"[brain] {self._model_name} kotası doldu, {remaining[0]}'e geçiliyor...")
+                        self._init_model(skip_models=tried)
+                        past = self.history[:-1]  # son user mesajı hariç geçmiş
+                        history = []
+                        for m in past:
+                            if isinstance(m.get("content"), str):
+                                role = "user" if m["role"] == "user" else "model"
+                                history.append({"role": role, "parts": [m["content"]]})
+                        self._chat = self._model.start_chat(history=history)
+                        continue
+                    # Tüm modeller bitti
+                    self.history.pop()
+                    return (
+                        "Gemini API kotası doldu. Yeni anahtar al: "
+                        "aistudio.google.com/apikey — .env'e yaz ve Jarvis'i yeniden başlat."
+                    )
+                raise
 
         while True:
             fn_calls = [
