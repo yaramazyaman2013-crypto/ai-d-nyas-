@@ -104,7 +104,9 @@ def _get_whisper():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        size = os.getenv("JARVIS_STT_MODEL", "small")
+        # "tiny" varsayılan — CPU'da ~3x daha hızlı, Türkçe için yeterli
+        # Daha iyi doğruluk istersen .env'e JARVIS_STT_MODEL=small yaz
+        size = os.getenv("JARVIS_STT_MODEL", "tiny")
         print(f"[voice] Whisper '{size}' yükleniyor "
               f"(ilk seferde model indirilir, biraz bekle)...")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")
@@ -151,8 +153,8 @@ class WakeWordListener:
 
     CHUNK = 512           # her seferinde okunan sample sayısı
     SILENCE_THRESHOLD = 0.015   # RMS eşiği — altıysa sessiz
-    SILENCE_SECS = 1.5    # bu kadar sessizlik = konuşma bitti
-    MAX_RECORD_SECS = 15  # tek konuşma en fazla bu kadar
+    SILENCE_SECS = 1.0    # bu kadar sessizlik = konuşma bitti (hız için 1.5→1.0)
+    MAX_RECORD_SECS = 12  # tek konuşma en fazla bu kadar
 
     def __init__(self, on_command):
         self._on_command = on_command  # fn(metin: str) -> str
@@ -201,6 +203,7 @@ class WakeWordListener:
                         break
 
                 audio = np.concatenate(frames, axis=0).flatten()
+                print("   ⏳ Düşünüyor...")
                 text = transcribe(audio)
                 if not text:
                     continue

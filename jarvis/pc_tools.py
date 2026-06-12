@@ -14,13 +14,83 @@ import webbrowser
 IS_WIN = sys.platform.startswith("win")
 IS_MAC = sys.platform == "darwin"
 
+# Windows uygulama takma adları — "chrome" gibi kısa isimler gerçek komutlara eşlenir
+_WIN_APP_ALIASES: dict[str, str] = {
+    "chrome": "chrome",
+    "google chrome": "chrome",
+    "firefox": "firefox",
+    "mozilla firefox": "firefox",
+    "edge": "msedge",
+    "microsoft edge": "msedge",
+    "opera": "opera",
+    "brave": "brave",
+    "notepad": "notepad",
+    "not defteri": "notepad",
+    "word": "winword",
+    "excel": "excel",
+    "powerpoint": "powerpnt",
+    "outlook": "outlook",
+    "explorer": "explorer",
+    "dosya gezgini": "explorer",
+    "calculator": "calc",
+    "hesap makinesi": "calc",
+    "paint": "mspaint",
+    "cmd": "cmd",
+    "terminal": "cmd",
+    "powershell": "powershell",
+    "task manager": "taskmgr",
+    "görev yöneticisi": "taskmgr",
+    "spotify": "spotify",
+    "discord": "discord",
+    "steam": "steam",
+    "vlc": "vlc",
+    "vscode": "code",
+    "vs code": "code",
+    "visual studio code": "code",
+    "zoom": "zoom",
+    "teams": "teams",
+    "whatsapp": "whatsapp",
+    "telegram": "telegram",
+}
+
+
+def _win_open(isim: str) -> str:
+    """Windows'ta uygulama açar — takma ad veya doğrudan komut dener."""
+    key = isim.lower().strip()
+    cmd = _WIN_APP_ALIASES.get(key, isim)
+
+    # 1) Önce PATH'teki çalıştırılabiliri dene
+    import shutil
+    if shutil.which(cmd):
+        subprocess.Popen([cmd], shell=False,
+                         creationflags=subprocess.DETACHED_PROCESS
+                         if hasattr(subprocess, "DETACHED_PROCESS") else 0)
+        return f"{isim} açıldı."
+
+    # 2) `start` komutuyla dene (Windows kabuğu çok şey çözüyor)
+    try:
+        subprocess.Popen(["cmd", "/c", "start", "", cmd],
+                         creationflags=subprocess.CREATE_NO_WINDOW
+                         if hasattr(subprocess, "CREATE_NO_WINDOW") else 0)
+        return f"{isim} açıldı."
+    except Exception:
+        pass
+
+    # 3) os.startfile ile son şans (kayıtlı dosya tipi, .lnk kısayol vb.)
+    try:
+        os.startfile(isim)  # type: ignore[attr-defined]
+        return f"{isim} açıldı."
+    except Exception as e:
+        return (f"{isim} açılamadı. Windows'ta tam yolu veya uygulama adını dene "
+                f"(örn. 'chrome', 'notepad'). Hata: {e}")
+
 
 def open_app(isim: str) -> str:
     """Bir programı/uygulamayı açar."""
     isim = isim.strip()
     try:
         if IS_WIN:
-            os.startfile(isim)  # type: ignore[attr-defined]
+            return _win_open(isim)
         elif IS_MAC:
             subprocess.Popen(["open", "-a", isim])
         else:
@@ -55,8 +125,40 @@ def set_volume(seviye: int) -> str:
             subprocess.run(["amixer", "-q", "sset", "Master", f"{seviye}%"],
                            check=True)
         elif IS_WIN:
-            return ("Windows'ta ses ayarı için 'pycaw' kütüphanesi gerekir "
-                    "(pip install pycaw). Şimdilik atlandı.")
+            # PowerShell ile Windows Core Audio API üzerinden ses ayarla
+            ps_script = (
+                "Add-Type -TypeDefinition '"
+                "using System.Runtime.InteropServices;"
+                "[Guid(\"5CDF2C82-841E-4546-9722-0CF74078229A\"),"
+                "InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]"
+                "interface IAudioEndpointVolume {"
+                "  int _VtblGap1_6();"
+                "  int SetMasterVolumeLevelScalar(float f, System.Guid g);"
+                "}"
+                "[Guid(\"D666063F-1587-4E43-81F1-B948E807363F\"),"
+                "InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]"
+                "interface IMMDevice {"
+                "  int Activate([MarshalAs(UnmanagedType.LPStruct)] System.Guid id,"
+                "  int ctx, System.IntPtr p,"
+                "  [MarshalAs(UnmanagedType.IUnknown)] out object pp);"
+                "}"
+                "[Guid(\"A95664D2-9614-4F35-A746-DE8DB63617E6\"),"
+                "InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]"
+                "interface IMMDeviceEnumerator {"
+                "  int _VtblGap1_1();"
+                "  int GetDefaultAudioEndpoint(int df, int role, out IMMDevice pp);"
+                "}"
+                "[ComImport, Guid(\"BCDE0395-E52F-467C-8E3D-C4579291692E\")]"
+                "class MDE {}"
+                "' -ErrorAction Stop;"
+                "$e = [MDE] -as [IMMDeviceEnumerator];"
+                "$d = $null; $e.GetDefaultAudioEndpoint(0,1,[ref]$d) | Out-Null;"
+                "$v = $null; $d.Activate([System.Guid]'5CDF2C82-841E-4546-9722-0CF74078229A',"
+                f"23,[System.IntPtr]::Zero,[ref]$v) | Out-Null;"
+                f"$v.SetMasterVolumeLevelScalar({seviye/100:.2f},[System.Guid]::Empty) | Out-Null"
+            )
+            subprocess.run(["powershell", "-NonInteractive", "-Command", ps_script],
+                           check=True, capture_output=True)
         return f"Ses %{seviye} yapıldı."
     except Exception as e:
         return f"Ses ayarlanamadı: {e}"
@@ -71,8 +173,19 @@ def take_screenshot() -> str:
         elif sys.platform.startswith("linux"):
             subprocess.run(["scrot", path], check=True)
         elif IS_WIN:
-            return ("Windows'ta ekran görüntüsü için 'pillow' gerekir "
-                    "(pip install pillow). Şimdilik atlandı.")
+            # PowerShell ile ekran görüntüsü al — ek paket gerektirmez
+            ps_script = (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "Add-Type -AssemblyName System.Drawing;"
+                f"$bmp = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width,"
+                "[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);"
+                "$g = [System.Drawing.Graphics]::FromImage($bmp);"
+                "$g.CopyFromScreen(0,0,0,0,$bmp.Size);"
+                f"$bmp.Save('{path}');"
+                "$g.Dispose(); $bmp.Dispose()"
+            )
+            subprocess.run(["powershell", "-NonInteractive", "-Command", ps_script],
+                           check=True, capture_output=True)
         return f"Ekran görüntüsü kaydedildi: {path}"
     except Exception as e:
         return f"Ekran görüntüsü alınamadı: {e}"
