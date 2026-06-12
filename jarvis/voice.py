@@ -104,7 +104,9 @@ def _get_whisper():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        size = os.getenv("JARVIS_STT_MODEL", "small")
+        # "base" varsayılan — tiny'den daha iyi Türkçe, small'dan daha hızlı
+        # Daha hızlı istersen JARVIS_STT_MODEL=tiny, daha doğru: small
+        size = os.getenv("JARVIS_STT_MODEL", "base")
         print(f"[voice] Whisper '{size}' yükleniyor "
               f"(ilk seferde model indirilir, biraz bekle)...")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")
@@ -151,8 +153,8 @@ class WakeWordListener:
 
     CHUNK = 512           # her seferinde okunan sample sayısı
     SILENCE_THRESHOLD = 0.015   # RMS eşiği — altıysa sessiz
-    SILENCE_SECS = 1.5    # bu kadar sessizlik = konuşma bitti
-    MAX_RECORD_SECS = 15  # tek konuşma en fazla bu kadar
+    SILENCE_SECS = 1.0    # bu kadar sessizlik = konuşma bitti (hız için 1.5→1.0)
+    MAX_RECORD_SECS = 12  # tek konuşma en fazla bu kadar
 
     def __init__(self, on_command):
         self._on_command = on_command  # fn(metin: str) -> str
@@ -201,6 +203,7 @@ class WakeWordListener:
                         break
 
                 audio = np.concatenate(frames, axis=0).flatten()
+                print("   ⏳ Düşünüyor...")
                 text = transcribe(audio)
                 if not text:
                     continue
@@ -210,12 +213,26 @@ class WakeWordListener:
                     clean = text.lower().replace(WAKE_WORD, "").strip(" ,.")
                     if not clean:
                         speak("Evet?")
+                        _drain(buf)  # kendi sesimizi duymayalım
                         clean = _listen_once(buf)  # cevabı bekle
                     if clean:
                         print(f"👤 Sen: {clean}")
                         reply = self._on_command(clean)
                         print(f"🤖 Jarvis: {reply}")
                         speak(reply)
+                # KRİTİK: Jarvis konuşurken mikrofon kendi sesini kaydeder.
+                # Buffer'ı boşalt ki bir sonraki komut temiz duyulsun.
+                # (Eskiden 2. komuttan itibaren anlamamasının sebebi buydu.)
+                _drain(buf)
+
+
+def _drain(buf: queue.Queue):
+    """Mikrofon buffer'ında birikmiş eski sesleri at."""
+    try:
+        while True:
+            buf.get_nowait()
+    except queue.Empty:
+        pass
 
 
 def _listen_once(buf: queue.Queue) -> str:
@@ -244,27 +261,91 @@ def _listen_once(buf: queue.Queue) -> str:
 
 
 # ── Transkripsiyon ──────────────────────────────────────────────────────────
-def transcribe(audio: np.ndarray) -> str:
-    if audio.size < SAMPLE_RATE // 2:
-        return ""
+def _audio_to_wav_bytes(audio: np.ndarray) -> bytes:
+    """float32 numpy ses verisini WAV byte'larına çevirir."""
+    import io
+    import wave
+    pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+    bio = io.BytesIO()
+    with wave.open(bio, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(pcm.tobytes())
+    return bio.getvalue()
+
+
+_groq_stt_client = None
+
+
+def _transcribe_groq(audio: np.ndarray) -> str:
+    """Groq bulut Whisper — PC gücünden bağımsız, çok hızlı ve doğru."""
+    global _groq_stt_client
+    if _groq_stt_client is None:
+        from groq import Groq
+        _groq_stt_client = Groq(api_key=os.environ["GROQ_API_KEY"])
+    wav = _audio_to_wav_bytes(audio)
+    result = _groq_stt_client.audio.transcriptions.create(
+        model="whisper-large-v3-turbo",
+        file=("ses.wav", wav),
+        language="tr",
+        temperature=0.0,
+    )
+    return result.text.strip()
+
+
+def _transcribe_local(audio: np.ndarray) -> str:
     model = _get_whisper()
     segments, _ = model.transcribe(audio, language="tr", beam_size=1)
     return " ".join(s.text for s in segments).strip()
 
 
+def transcribe(audio: np.ndarray) -> str:
+    if audio.size < SAMPLE_RATE // 2:
+        return ""
+    # Groq anahtarı varsa bulutta çöz (hızlı + çok doğru + PC'yi yormaz).
+    # JARVIS_STT=local yazarsan yerel Whisper'a döner (internet gerekmez).
+    if os.getenv("GROQ_API_KEY") and os.getenv("JARVIS_STT", "groq").lower() != "local":
+        try:
+            return _transcribe_groq(audio)
+        except Exception as e:
+            print(f"[voice] Bulut STT hatası ({str(e)[:80]}), yerel modele geçiliyor...")
+    return _transcribe_local(audio)
+
+
 # ── Sesli cevap ─────────────────────────────────────────────────────────────
-async def _speak_async(text: str):
+# JARVIS_TTS seçenekleri:
+#   gtts (varsayılan) → Google TTS, doğal Türkçe
+#   edge              → edge-tts (tr-TR-AhmetNeural)
+def _tts_gtts(text: str, path: str):
+    from gtts import gTTS
+    gTTS(text=text, lang="tr", slow=False).save(path)
+
+
+def _tts_edge(text: str, path: str):
     import edge_tts
-    voice = os.getenv("JARVIS_VOICE", "tr-TR-AhmetNeural")
-    path = os.path.join(tempfile.gettempdir(), "jarvis_out.mp3")
-    await edge_tts.Communicate(text, voice).save(path)
-    _play(path)
+
+    async def _gen():
+        voice = os.getenv("JARVIS_VOICE", "tr-TR-AhmetNeural")
+        await edge_tts.Communicate(text, voice).save(path)
+
+    asyncio.run(_gen())
 
 
 def speak(text: str):
     if not text:
         return
-    asyncio.run(_speak_async(text))
+    path = os.path.join(tempfile.gettempdir(), "jarvis_out.mp3")
+    engine = os.getenv("JARVIS_TTS", "gtts").lower()
+    engines = [_tts_edge, _tts_gtts] if engine == "edge" else [_tts_gtts, _tts_edge]
+    for tts in engines:
+        try:
+            tts(text, path)
+            _play(path)
+            return
+        except Exception as e:
+            print(f"[voice] TTS hatası ({tts.__name__}): {str(e)[:80]} — diğeri deneniyor")
+    print(f"[voice] Sesli cevap verilemedi. Metin: {text}")
 
 
 def _play(path: str):
@@ -273,12 +354,20 @@ def _play(path: str):
         if sys.platform == "darwin":
             subprocess.run(["afplay", path], check=False)
         elif sys.platform.startswith("win"):
-            subprocess.run(
-                ["powershell", "-c",
-                 f"Add-Type -AssemblyName presentationCore;"
-                 f"$p=New-Object System.Windows.Media.MediaPlayer;"
-                 f"$p.Open('{path}');$p.Play();Start-Sleep 10"],
-                check=False)
+            # Sesin gerçek süresi kadar bekle (eskiden sabit 10sn idi: uzun
+            # cevaplar kesiliyordu, kısa cevaplarda boşuna bekliyordu)
+            ps = (
+                "Add-Type -AssemblyName presentationCore;"
+                "$p=New-Object System.Windows.Media.MediaPlayer;"
+                f"$p.Open('{path}');$p.Play();"
+                "$t=0; while(-not $p.NaturalDuration.HasTimeSpan -and $t -lt 30)"
+                "{Start-Sleep -Milliseconds 100; $t++};"
+                "if($p.NaturalDuration.HasTimeSpan)"
+                "{Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 300)};"
+                "$p.Close()"
+            )
+            subprocess.run(["powershell", "-NonInteractive", "-Command", ps],
+                           check=False)
         else:
             for player in (
                 ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path],
