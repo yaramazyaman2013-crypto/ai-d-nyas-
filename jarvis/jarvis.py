@@ -1,8 +1,8 @@
 """JARVIS — ana döngü.
 
 Çalıştır:
-  python jarvis.py            → bas-konuş modu (Enter)
-  python jarvis.py --wake     → sürekli dinleme, "Jarvis" de uyan
+  python jarvis.py            → sürekli dinleme (Enter yok), "Jarvis" de uyan
+  python jarvis.py --enter    → klasik bas-konuş modu (Enter'a bas)
 
 İlk çalıştırmada eksik kütüphaneler otomatik yüklenir.
 """
@@ -197,13 +197,14 @@ def main():
     jarvis = brain.Brain()
     voice.speak("Merhaba, ben Jarvis. Emrindeyim.")
 
-    wake_mode = "--wake" in sys.argv
+    # Varsayılan: sürekli dinleme (Enter gerekmez). --enter ile bas-konuş'a geç.
+    push_mode = "--enter" in sys.argv
 
     try:
-        if wake_mode:
-            run_wake_word(jarvis)
-        else:
+        if push_mode:
             run_push_to_talk(jarvis)
+        else:
+            run_wake_word(jarvis)
     except KeyboardInterrupt:
         print("\nGörüşürüz!")
         voice.speak("Görüşmek üzere.")
