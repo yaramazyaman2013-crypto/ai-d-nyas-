@@ -236,6 +236,247 @@ const skills = {
     }
     return mined ? `${mined} ${block} kazıdım.` : `Yakında ${block} yok.`
   },
+
+  // ── Madencilik görevi ────────────────────────────────────────────────────
+  async mine_mission({ ore = 'coal_ore', amount = 32 } = {}) {
+    // Kömür, demir, altın, elmas vb. için akıllı madencilik görevi.
+    // Hem normal hem de deep variant'ı arar, uygun alet kullanır, döner.
+    const aliases = {
+      coal: ['coal_ore', 'deepslate_coal_ore'],
+      iron: ['iron_ore', 'deepslate_iron_ore'],
+      gold: ['gold_ore', 'deepslate_gold_ore'],
+      diamond: ['diamond_ore', 'deepslate_diamond_ore'],
+      lapis: ['lapis_ore', 'deepslate_lapis_ore'],
+      redstone: ['redstone_ore', 'deepslate_redstone_ore'],
+      emerald: ['emerald_ore', 'deepslate_deepslate_emerald_ore'],
+      copper: ['copper_ore', 'deepslate_copper_ore'],
+    }
+    const targets = aliases[ore] || [ore, 'deepslate_' + ore]
+    const oreIds = targets
+      .map(n => mcData.blocksByName[n]?.id)
+      .filter(Boolean)
+
+    if (!oreIds.length) return `'${ore}' madeni tanımıyorum.`
+
+    const startPos = bot.entity.position.clone()
+    let mined = 0
+    let attempts = 0
+    const maxAttempts = amount * 3
+
+    while (mined < amount && attempts < maxAttempts) {
+      attempts++
+      const block = bot.findBlock({ matching: oreIds, maxDistance: 64 })
+      if (!block) break
+
+      // Uygun kazma seç
+      const pickaxes = ['netherite_pickaxe','diamond_pickaxe','iron_pickaxe','stone_pickaxe','wooden_pickaxe']
+      for (const p of pickaxes) {
+        const tool = bot.inventory.items().find(i => i.name === p)
+        if (tool) { await bot.equip(tool, 'hand'); break }
+      }
+
+      try {
+        await bot.pathfinder.goto(new goals.GoalNear(
+          block.position.x, block.position.y, block.position.z, 1))
+        await bot.dig(block)
+        mined++
+        // Sürüklenen eşyaları topla
+        await new Promise(r => setTimeout(r, 400))
+      } catch { /* blok kaybolmuş olabilir */ }
+
+      // Envanter doldu mu?
+      if (bot.inventory.emptySlotCount() < 2) break
+    }
+
+    // Oyuncuya geri dön
+    const player = nearestPlayer()
+    if (player?.entity) {
+      const { x, y, z } = player.entity.position
+      await bot.pathfinder.goto(new goals.GoalNear(x, y, z, 3))
+    }
+
+    const oreName = ore.charAt(0).toUpperCase() + ore.slice(1)
+    return mined
+      ? `${mined} ${oreName} madeni kazıp geri döndüm.`
+      : `${oreName} madeni bulamadım (64 blok içinde yok veya alet eksik).`
+  },
+
+  // ── İnşaat sistemi ───────────────────────────────────────────────────────
+  async build({ yapi = 'kulübe', malzeme = null } = {}) {
+    const pos = bot.entity.position.floored()
+    // Zemin seviyesine in
+    const bx = pos.x, by = pos.y, bz = pos.z + 3
+
+    // Kullanılabilir blok bul
+    const matPriority = malzeme
+      ? [malzeme]
+      : ['oak_planks','spruce_planks','birch_planks','cobblestone','stone','dirt','sand']
+
+    function findMat(names) {
+      for (const n of names) {
+        const item = bot.inventory.items().find(i => i.name === n)
+        if (item && item.count > 0) return item
+      }
+      return null
+    }
+
+    const blueprints = {
+      // Basit kulübe: 5x5 taban, 3 kat duvar, çatı
+      'kulübe': () => {
+        const blocks = []
+        for (let y = 0; y < 4; y++) {
+          for (let x = -2; x <= 2; x++) {
+            for (let z = 0; z <= 4; z++) {
+              const isWall = y === 0 || y === 3 || x === -2 || x === 2 || z === 0 || z === 4
+              if (isWall) blocks.push([bx+x, by+y, bz+z])
+            }
+          }
+        }
+        // Çatı
+        for (let x = -2; x <= 2; x++)
+          for (let z = 0; z <= 4; z++)
+            blocks.push([bx+x, by+4, bz+z])
+        return blocks
+      },
+      // Kule: 3x3 taban, 15 kat
+      'kule': () => {
+        const blocks = []
+        for (let y = 0; y < 15; y++) {
+          for (let x = -1; x <= 1; x++) {
+            for (let z = 0; z <= 2; z++) {
+              if (x === -1 || x === 1 || z === 0 || z === 2)
+                blocks.push([bx+x, by+y, bz+z])
+            }
+          }
+        }
+        // Tepesi
+        for (let x = -1; x <= 1; x++)
+          for (let z = 0; z <= 2; z++)
+            blocks.push([bx+x, by+15, bz+z])
+        return blocks
+      },
+      // Gökdelen: 7x7 taban, 30 kat, her 5 katta bir zemin (tavan/taban)
+      'gökdelen': () => {
+        const blocks = []
+        const W = 3 // yarı genişlik
+        for (let y = 0; y < 30; y++) {
+          for (let x = -W; x <= W; x++) {
+            for (let z = 0; z <= W*2; z++) {
+              const isWall = x === -W || x === W || z === 0 || z === W*2
+              const isFloor = y % 5 === 0
+              if (isWall || isFloor) blocks.push([bx+x, by+y, bz+z])
+            }
+          }
+        }
+        // Çatı
+        for (let x = -W; x <= W; x++)
+          for (let z = 0; z <= W*2; z++)
+            blocks.push([bx+x, by+30, bz+z])
+        return blocks
+      },
+      // Köprü: 3 geniş, 20 blok uzun
+      'köprü': () => {
+        const blocks = []
+        for (let z = 0; z < 20; z++)
+          for (let x = -1; x <= 1; x++)
+            blocks.push([bx+x, by, bz+z])
+        return blocks
+      },
+      // Duvar: 1 kalın, 10 uzun, 5 yüksek
+      'duvar': () => {
+        const blocks = []
+        for (let z = 0; z < 10; z++)
+          for (let y = 0; y < 5; y++)
+            blocks.push([bx, by+y, bz+z])
+        return blocks
+      },
+    }
+
+    const key = Object.keys(blueprints).find(k =>
+      yapi.toLowerCase().includes(k) || k.includes(yapi.toLowerCase()))
+    if (!key) {
+      return `'${yapi}' yapısını bilmiyorum. Bildiğim yapılar: ${Object.keys(blueprints).join(', ')}.`
+    }
+
+    const blockList = blueprints[key]()
+    const mat = findMat(matPriority)
+    if (!mat) {
+      const needed = Math.min(blockList.length, 64)
+      return `İnşaat için malzeme yok. En az ${needed} blok gerekiyor (ahşap, taş, toprak vb.).`
+    }
+
+    let placed = 0
+    let currentMat = mat
+
+    for (const [wx, wy, wz] of blockList) {
+      currentMat = findMat(matPriority)
+      if (!currentMat) break
+
+      try {
+        await bot.equip(currentMat, 'hand')
+        // Botun yerleştirebileceği konuma git
+        await bot.pathfinder.goto(new goals.GoalNear(wx, wy, wz, 2))
+        const ref = bot.blockAt(new (require('vec3'))(wx, wy - 1, wz))
+        if (ref && ref.name !== 'air') {
+          await bot.placeBlock(ref, new (require('vec3'))(0, 1, 0))
+          placed++
+        }
+      } catch { /* blok zaten var veya ulaşılamıyor */ }
+    }
+
+    return placed > 0
+      ? `${key} inşa ettim — ${placed} blok yerleştirdim.`
+      : `${key} inşa edemedim. Malzeme veya yer sorunu olabilir.`
+  },
+
+  // ── Hayatta kalma görevi ─────────────────────────────────────────────────
+  async survive({ sure = 60 } = {}) {
+    // Belirtilen süre boyunca (saniye) hayatta kalır:
+    // ağaç kes → odun craft → yemek ara → düşman varsa savaş
+    const end = Date.now() + sure * 1000
+    const log = []
+
+    while (Date.now() < end) {
+      // Açlık kontrolü
+      if (bot.food < 14) {
+        const food = bot.inventory.items().find(i => bot.registry.itemsByName[i.name]?.food)
+        if (food) {
+          await bot.equip(food, 'hand')
+          try { await bot.consume(); log.push('yedim') } catch {}
+        }
+      }
+
+      // Düşman varsa savaş
+      const mob = bot.nearestEntity(e => e.type === 'mob' &&
+        bot.entity.position.distanceTo(e.position) < 8)
+      if (mob) {
+        await bot.pathfinder.goto(new goals.GoalNear(
+          mob.position.x, mob.position.y, mob.position.z, 2))
+        bot.attack(mob)
+        log.push('savaştım')
+        await new Promise(r => setTimeout(r, 1000))
+        continue
+      }
+
+      // Odun topla
+      const logIds = Object.keys(mcData.blocksByName)
+        .filter(n => n.endsWith('_log'))
+        .map(n => mcData.blocksByName[n].id)
+      const tree = bot.findBlock({ matching: logIds, maxDistance: 16 })
+      if (tree) {
+        await bot.pathfinder.goto(new goals.GoalNear(
+          tree.position.x, tree.position.y, tree.position.z, 1))
+        try { await bot.dig(tree); log.push('odun') } catch {}
+      }
+
+      await new Promise(r => setTimeout(r, 500))
+    }
+
+    const summary = {}
+    for (const a of log) summary[a] = (summary[a] || 0) + 1
+    return 'Hayatta kalma görevi bitti: ' +
+      Object.entries(summary).map(([k,v]) => `${k}(${v})`).join(', ') + '.'
+  },
 }
 
 // ── WebSocket sunucusu (Python köprüsü buraya bağlanır) ─────────────────────
