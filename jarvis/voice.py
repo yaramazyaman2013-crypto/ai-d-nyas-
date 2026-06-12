@@ -13,6 +13,10 @@ import sys
 import tempfile
 import threading
 
+# Hugging Face indirme uyarılarını sustur (zararsız ama kafa karıştırıcı)
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
 import numpy as np
 import sounddevice as sd
 
@@ -101,8 +105,10 @@ def _get_whisper():
     if _whisper_model is None:
         from faster_whisper import WhisperModel
         size = os.getenv("JARVIS_STT_MODEL", "small")
-        print(f"[voice] Whisper '{size}' yükleniyor...")
+        print(f"[voice] Whisper '{size}' yükleniyor "
+              f"(ilk seferde model indirilir, biraz bekle)...")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")
+        print("[voice] Whisper hazır.")
     return _whisper_model
 
 
