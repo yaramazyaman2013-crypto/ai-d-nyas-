@@ -24,8 +24,32 @@ BANNER = r"""
 """
 
 
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+
+
+def _save_key(env_var: str, value: str):
+    """Anahtarı .env dosyasına kalıcı olarak yazar."""
+    lines = []
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+    # Varsa güncelle, yoksa ekle
+    key_line = f"{env_var}={value}\n"
+    for i, line in enumerate(lines):
+        if line.startswith(f"{env_var}="):
+            lines[i] = key_line
+            break
+    else:
+        lines.append(key_line)
+
+    with open(ENV_FILE, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    print(f"   ✓ Anahtar .env dosyasına kaydedildi (bir daha sorulmayacak).")
+
+
 def _setup_keys():
-    """Eksik API anahtarlarını başlangıçta kullanıcıdan iste."""
+    """Eksik API anahtarlarını başlangıçta kullanıcıdan iste ve kaydet."""
     provider = os.getenv("JARVIS_PROVIDER", "gemini").lower()
 
     if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
@@ -37,6 +61,7 @@ def _setup_keys():
             print("Anahtar girilmedi, çıkılıyor.")
             sys.exit(1)
         os.environ["GEMINI_API_KEY"] = key
+        _save_key("GEMINI_API_KEY", key)
         print("─" * 50)
 
     elif provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
@@ -48,6 +73,7 @@ def _setup_keys():
             print("Anahtar girilmedi, çıkılıyor.")
             sys.exit(1)
         os.environ["ANTHROPIC_API_KEY"] = key
+        _save_key("ANTHROPIC_API_KEY", key)
         print("─" * 50)
 
 
