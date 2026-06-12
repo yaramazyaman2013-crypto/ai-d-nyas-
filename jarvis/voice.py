@@ -104,9 +104,9 @@ def _get_whisper():
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-        # "tiny" varsayılan — CPU'da ~3x daha hızlı, Türkçe için yeterli
-        # Daha iyi doğruluk istersen .env'e JARVIS_STT_MODEL=small yaz
-        size = os.getenv("JARVIS_STT_MODEL", "tiny")
+        # "base" varsayılan — tiny'den daha iyi Türkçe, small'dan daha hızlı
+        # Daha hızlı istersen JARVIS_STT_MODEL=tiny, daha doğru: small
+        size = os.getenv("JARVIS_STT_MODEL", "base")
         print(f"[voice] Whisper '{size}' yükleniyor "
               f"(ilk seferde model indirilir, biraz bekle)...")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")

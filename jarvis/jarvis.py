@@ -28,6 +28,7 @@ def _auto_install():
         "numpy": "numpy",
         "dotenv": "python-dotenv",
         "websockets": "websockets",
+        "psutil": "psutil",
     }
     missing = [
         pip for mod, pip in pkg_map.items()

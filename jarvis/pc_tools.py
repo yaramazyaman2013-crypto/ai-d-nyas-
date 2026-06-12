@@ -9,6 +9,8 @@ import os
 import platform
 import subprocess
 import sys
+import urllib.parse
+import urllib.request
 import webbrowser
 
 IS_WIN = sys.platform.startswith("win")
@@ -292,6 +294,77 @@ def type_text(metin: str) -> str:
         return f"Yazma başarısız: {e}"
 
 
+def get_weather(sehir: str = "Istanbul") -> str:
+    """Belirtilen şehrin hava durumunu getirir (API anahtarı gerekmez)."""
+    try:
+        sehir_enc = urllib.parse.quote(sehir)
+        url = f"https://wttr.in/{sehir_enc}?format=3&lang=tr"
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.read().decode("utf-8").strip()
+    except Exception as e:
+        return f"Hava durumu alınamadı: {e}"
+
+
+def system_status() -> str:
+    """CPU, RAM ve disk kullanımını döndürür."""
+    try:
+        import psutil
+        cpu = psutil.cpu_percent(interval=0.5)
+        ram = psutil.virtual_memory()
+        disk = psutil.disk_usage("/") if not IS_WIN else psutil.disk_usage("C:\\")
+        return (
+            f"CPU: %{cpu:.0f}, "
+            f"RAM: %{ram.percent:.0f} kullanımda ({ram.used//1024**3}/{ram.total//1024**3} GB), "
+            f"Disk: %{disk.percent:.0f} dolu ({disk.free//1024**3} GB boş)."
+        )
+    except ImportError:
+        return "psutil kurulu değil, pip install psutil ile kur."
+    except Exception as e:
+        return f"Sistem bilgisi alınamadı: {e}"
+
+
+def open_youtube(sorgu: str) -> str:
+    """YouTube'da bir video veya kanal arar ve tarayıcıda açar."""
+    url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(sorgu)}"
+    webbrowser.open(url)
+    return f"YouTube'da '{sorgu}' arandı."
+
+
+def open_whatsapp() -> str:
+    """WhatsApp Web'i tarayıcıda açar."""
+    webbrowser.open("https://web.whatsapp.com")
+    return "WhatsApp Web açıldı."
+
+
+def open_website(site: str) -> str:
+    """Belirli bir web sitesini açar (youtube, whatsapp, instagram, gmail vb.)."""
+    site_map = {
+        "youtube": "https://www.youtube.com",
+        "whatsapp": "https://web.whatsapp.com",
+        "instagram": "https://www.instagram.com",
+        "twitter": "https://www.twitter.com",
+        "x": "https://www.x.com",
+        "gmail": "https://mail.google.com",
+        "facebook": "https://www.facebook.com",
+        "tiktok": "https://www.tiktok.com",
+        "reddit": "https://www.reddit.com",
+        "netflix": "https://www.netflix.com",
+        "spotify": "https://open.spotify.com",
+        "twitch": "https://www.twitch.tv",
+        "github": "https://www.github.com",
+    }
+    lower = site.lower().strip()
+    url = site_map.get(lower, None)
+    if url is None:
+        if not lower.startswith("http"):
+            url = "https://" + lower
+        else:
+            url = lower
+    webbrowser.open(url)
+    return f"{site} açıldı."
+
+
 # ── Claude'a tanıtılan araç şemaları ──────────────────────────────────────
 # Her şema bir PC fonksiyonuna karşılık gelir. "_fn" çalıştırılacak fonksiyon.
 TOOLS = [
@@ -387,6 +460,42 @@ TOOLS = [
             "type": "object",
             "properties": {"metin": {"type": "string"}},
             "required": ["metin"],
+        },
+    },
+    {
+        "_fn": get_weather,
+        "name": "get_weather",
+        "description": "Bir şehrin hava durumunu söyler. Örn: 'hava nasıl', 'İstanbul'da hava'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"sehir": {"type": "string", "description": "Şehir adı (Türkçe veya İngilizce)"}},
+            "required": ["sehir"],
+        },
+    },
+    {
+        "_fn": system_status,
+        "name": "system_status",
+        "description": "Bilgisayarın CPU, RAM ve disk kullanımını gösterir. Örn: 'bilgisayar nasıl çalışıyor', 'ram doldu mu'.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "_fn": open_youtube,
+        "name": "open_youtube",
+        "description": "YouTube'da video veya müzik arar. Örn: 'YouTube'da lofi müzik aç', 'şarkı bul'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"sorgu": {"type": "string"}},
+            "required": ["sorgu"],
+        },
+    },
+    {
+        "_fn": open_website,
+        "name": "open_website",
+        "description": "Bir web sitesini açar: youtube, whatsapp, instagram, gmail, twitter, netflix, spotify, twitch vb.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"site": {"type": "string"}},
+            "required": ["site"],
         },
     },
 ]
