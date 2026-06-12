@@ -100,6 +100,16 @@ Jarvis ne demek istediğini anlar. Örnekler:
 
 ---
 
+## 📦 EXE olarak çalıştırmak (terminal istemiyorsan)
+
+`jarvis` klasöründeki **`exe_yap.bat`** dosyasına çift tıkla.
+5-10 dakika sonra `dist\Jarvis.exe` oluşur — artık çift tıklayıp çalıştırabilirsin.
+
+> Not: EXE bulut ses tanıma kullanır (Groq), bu yüzden internet gerekir ama
+> bilgisayarın gücünden bağımsız çalışır — eski PC'lerde bile hızlıdır.
+
+---
+
 ## 🔑 Claude kullanmak istersen (Gemini yerine)
 
 `jarvis/.env` dosyasını aç ve şunu yaz:
@@ -130,9 +140,9 @@ Hata mesajını paylaşırsan çözmeye yardım ederiz.
 
 | Katman | Teknoloji |
 |--------|-----------|
-| Konuşma tanıma (STT) | faster-whisper (yerel, ücretsiz) |
-| Beyin (LLM) | Google Gemini veya Anthropic Claude |
-| Ses sentezi (TTS) | edge-tts (Türkçe, ücretsiz) |
+| Konuşma tanıma (STT) | Groq bulut Whisper (hızlı, PC'yi yormaz) + yerel faster-whisper yedeği |
+| Beyin (LLM) | Groq (varsayılan), Gemini veya Claude |
+| Ses sentezi (TTS) | gTTS (Google, Türkçe) + edge-tts yedeği |
 | PC kontrolü | Python (cross-platform) |
 | Minecraft | Mineflayer (Node.js) + WebSocket köprüsü |
 | Hafıza | JSON tabanlı konuşma kaydı |

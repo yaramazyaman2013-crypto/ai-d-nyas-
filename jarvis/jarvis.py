@@ -12,6 +12,8 @@ import sys
 
 # ── Otomatik kurulum ────────────────────────────────────────────────────────
 def _auto_install():
+    if getattr(sys, "frozen", False):
+        return  # EXE içinde pip çalışmaz; her şey pakete gömülü
     req = os.path.join(os.path.dirname(__file__), "requirements.txt")
     if not os.path.exists(req):
         return
@@ -29,6 +31,7 @@ def _auto_install():
         "dotenv": "python-dotenv",
         "websockets": "websockets",
         "psutil": "psutil",
+        "gtts": "gTTS",
     }
     missing = [
         pip for mod, pip in pkg_map.items()
@@ -130,7 +133,13 @@ except Exception as _e:
 # ── Normal import'lar ────────────────────────────────────────────────────────
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv()
+# EXE olarak çalışıyorsa .env dosyası exe'nin yanındadır
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 try:
     import brain  # noqa: E402
@@ -147,7 +156,7 @@ BANNER = r"""
    Sesli Asistan + Minecraft Botu
 """
 
-ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+ENV_FILE = os.path.join(BASE_DIR, ".env")
 
 
 def _save_key(env_var: str, value: str):
