@@ -313,34 +313,54 @@ class _GroqBrain:
 
     def think(self, user_text: str) -> str:
         self.messages.append({"role": "user", "content": user_text})
+        tool_fail_count = 0
 
         while True:
+            # Araç çağırma birkaç kez bozulursa araçsız (sadece sohbet) dene
+            use_tools = tool_fail_count < 3
             try:
-                resp = self.client.chat.completions.create(
+                kwargs = dict(
                     model=self._model,
                     messages=self.messages,
-                    tools=_API_TOOLS_OPENAI,
-                    tool_choice="auto",
                     max_tokens=600,
                     temperature=0.6,
                 )
+                if use_tools:
+                    kwargs["tools"] = _API_TOOLS_OPENAI
+                    kwargs["tool_choice"] = "auto"
+                resp = self.client.chat.completions.create(**kwargs)
             except Exception as e:
                 err = str(e)
-                if ("429" in err or "rate" in err.lower()
-                        or "quota" in err.lower()) and len(self._models) > 1:
+                low = err.lower()
+
+                # 1) Kota/limit → sonraki modele geç
+                if ("429" in err or "rate" in low or "quota" in low) and len(self._models) > 1:
                     self._models.pop(0)
                     self._model = self._models[0]
                     print(f"[brain] Kota doldu, {self._model}'e geçiliyor...")
                     continue
-                return f"Groq hatası: {err[:120]}. Anahtarını kontrol et (console.groq.com)."
+
+                # 2) Araç çağrısı bozuldu → tekrar dene, olmazsa araçsız cevap ver
+                if "failed to call a function" in low or "tool_use_failed" in low:
+                    tool_fail_count += 1
+                    print(f"[brain] Araç çağrısı bozuldu, tekrar deneniyor ({tool_fail_count}/3)...")
+                    continue
+
+                # 3) Kimlik doğrulama
+                if "401" in err or "invalid_api_key" in low or "invalid api key" in low:
+                    return ("Groq anahtarı geçersiz. console.groq.com/keys adresinden "
+                            "yeni anahtar al ve .env dosyasındaki GROQ_API_KEY'i güncelle.")
+
+                return f"Groq hatası: {err[:140]}"
 
             msg = resp.choices[0].message
 
             if not msg.tool_calls:
                 reply = (msg.content or "").strip()
-                self.messages.append({"role": "assistant", "content": reply})
-                self._save()
-                return reply
+                if reply:
+                    self.messages.append({"role": "assistant", "content": reply})
+                    self._save()
+                return reply or "Anlayamadım, tekrar söyler misin?"
 
             # Araç çağrılarını çalıştır
             self.messages.append({
