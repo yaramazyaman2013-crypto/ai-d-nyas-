@@ -181,6 +181,19 @@ def main():
     print(BANNER)
     _setup_keys()
 
+    # Mikrofon kontrolü — sorun varsa korkutucu traceback yerine net mesaj göster
+    try:
+        voice._find_input_device()
+    except voice.NoMicrophoneError as e:
+        print("\n" + "═" * 50)
+        print(str(e))
+        print("═" * 50)
+        try:
+            input("\nKapatmak için ENTER'a bas...")
+        except Exception:
+            pass
+        sys.exit(1)
+
     jarvis = brain.Brain()
     voice.speak("Merhaba, ben Jarvis. Emrindeyim.")
 
