@@ -1,0 +1,6 @@
+.env
+node_modules/
+__pycache__/
+*.pyc
+out.mp3
+*.wav
