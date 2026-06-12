@@ -19,6 +19,7 @@ def _auto_install():
     import importlib.util
 
     pkg_map = {
+        "groq": "groq",
         "anthropic": "anthropic",
         "google.generativeai": "google-generativeai",
         "faster_whisper": "faster-whisper",
