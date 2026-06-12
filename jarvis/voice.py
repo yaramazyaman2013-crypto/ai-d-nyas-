@@ -20,6 +20,80 @@ SAMPLE_RATE = 16000
 WAKE_WORD = os.getenv("JARVIS_WAKE_WORD", "jarvis").lower()
 
 _whisper_model = None
+_MIC_DEVICE = None  # seçili giriş cihazı (index)
+
+
+class NoMicrophoneError(RuntimeError):
+    """Mikrofon bulunamadığında fırlatılır — anlaşılır talimat içerir."""
+
+
+def list_audio_devices() -> str:
+    """Tüm ses cihazlarını okunabilir biçimde döndürür (tanılama için)."""
+    try:
+        lines = []
+        for i, d in enumerate(sd.query_devices()):
+            io = []
+            if d["max_input_channels"] > 0:
+                io.append(f"giriş:{d['max_input_channels']}")
+            if d["max_output_channels"] > 0:
+                io.append(f"çıkış:{d['max_output_channels']}")
+            lines.append(f"  [{i}] {d['name']}  ({', '.join(io)})")
+        return "\n".join(lines) if lines else "  (hiç cihaz yok)"
+    except Exception as e:
+        return f"  (cihazlar listelenemedi: {e})"
+
+
+def _find_input_device() -> int:
+    """Geçerli bir mikrofon bul. Yoksa anlaşılır NoMicrophoneError fırlatır."""
+    global _MIC_DEVICE
+    if _MIC_DEVICE is not None:
+        return _MIC_DEVICE
+
+    # 1) Kullanıcı .env'de elle belirtmişse (numara veya isim)
+    env = os.getenv("JARVIS_MIC", "").strip()
+    if env:
+        try:
+            _MIC_DEVICE = int(env)
+            return _MIC_DEVICE
+        except ValueError:
+            for i, d in enumerate(sd.query_devices()):
+                if env.lower() in d["name"].lower() and d["max_input_channels"] > 0:
+                    _MIC_DEVICE = i
+                    return _MIC_DEVICE
+
+    # 2) Varsayılan giriş cihazı geçerli mi?
+    try:
+        default_in = sd.default.device[0]
+        if default_in is not None and default_in >= 0:
+            if sd.query_devices(default_in)["max_input_channels"] > 0:
+                _MIC_DEVICE = default_in
+                return _MIC_DEVICE
+    except Exception:
+        pass
+
+    # 3) İlk kullanılabilir giriş cihazını seç
+    try:
+        for i, d in enumerate(sd.query_devices()):
+            if d["max_input_channels"] > 0:
+                _MIC_DEVICE = i
+                print(f"[voice] Mikrofon otomatik seçildi: [{i}] {d['name']}")
+                return _MIC_DEVICE
+    except Exception:
+        pass
+
+    raise NoMicrophoneError(
+        "MİKROFON BULUNAMADI! Lütfen şunları kontrol et:\n"
+        "  1. Bir mikrofon takılı/bağlı mı? (kulaklık mikrofonu da olur)\n"
+        "  2. Windows: Ayarlar > Gizlilik ve güvenlik > Mikrofon →\n"
+        "     'Uygulamaların mikrofonunuza erişmesine izin verin' AÇIK olmalı.\n"
+        "  3. Windows: Ayarlar > Sistem > Ses > Giriş → bir mikrofon seçili olmalı.\n"
+        "\n"
+        "Mevcut ses cihazların:\n"
+        f"{list_audio_devices()}\n"
+        "\n"
+        "Belirli bir mikrofon seçmek için jarvis/.env dosyasına şunu ekle:\n"
+        "  JARVIS_MIC=1     (yukarıdaki listede 'giriş' yazan bir numara)"
+    )
 
 
 def _get_whisper():
@@ -44,7 +118,8 @@ def record_until_enter() -> np.ndarray:
         frames.put(indata.copy())
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
-                        dtype="float32", callback=callback):
+                        dtype="float32", callback=callback,
+                        device=_find_input_device()):
         input()
 
     chunks = []
@@ -95,7 +170,8 @@ class WakeWordListener:
             buf.put(indata.copy())
 
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
-                            dtype="float32", blocksize=self.CHUNK, callback=cb):
+                            dtype="float32", blocksize=self.CHUNK, callback=cb,
+                            device=_find_input_device()):
             while self._running:
                 chunk = buf.get()
                 rms = float(np.sqrt(np.mean(chunk ** 2)))
