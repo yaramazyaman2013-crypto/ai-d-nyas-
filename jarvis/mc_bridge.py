@@ -219,4 +219,52 @@ TOOLS = [
             "required": ["x", "y", "z"],
         },
     },
+    {
+        "_fn": lambda ore="coal", amount=32, **_: _send("mine_mission", {"ore": ore, "amount": int(amount)}),
+        "name": "mc_mine_mission",
+        "description": (
+            "Madencilik görevi: belirtilen madeni arar, kazır, oyuncuya geri döner. "
+            "ore değerleri: coal, iron, gold, diamond, lapis, redstone, emerald, copper. "
+            "Uygun kazma otomatik seçilir. Envanter dolunca veya görev tamamlanınca döner."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ore": {"type": "string", "description": "Maden türü: coal, iron, gold, diamond, lapis, redstone, copper"},
+                "amount": {"type": "integer", "description": "Kaç maden kazılacak (varsayılan 32)"},
+            },
+        },
+    },
+    {
+        "_fn": lambda yapi="kulübe", malzeme=None, **_: _send("build", {"yapi": yapi, "malzeme": malzeme}),
+        "name": "mc_build",
+        "description": (
+            "Minecraft'ta yapı inşa eder. "
+            "Bilinen yapılar: kulübe (5x5 ev), kule (3x3 15 katlı), gökdelen (7x7 30 katlı), köprü (3x20), duvar (1x10x5). "
+            "Malzeme envanterde olmalı (ahşap, taş, toprak vb.). "
+            "malzeme parametresi opsiyonel — belirtilmezse envanterdeki ilk uygun bloğu kullanır."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "yapi": {"type": "string", "description": "kulübe, kule, gökdelen, köprü veya duvar"},
+                "malzeme": {"type": "string", "description": "Kullanılacak blok adı, örn. oak_planks, cobblestone (opsiyonel)"},
+            },
+            "required": ["yapi"],
+        },
+    },
+    {
+        "_fn": lambda sure=60, **_: _send("survive", {"sure": int(sure)}),
+        "name": "mc_survive",
+        "description": (
+            "Belirtilen süre boyunca (saniye) otomatik hayatta kalma görevi: "
+            "ağaç keser, düşmanlara savaşır, acıkınca yer. Varsayılan 60 saniye."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sure": {"type": "integer", "description": "Görev süresi saniye cinsinden"},
+            },
+        },
+    },
 ]
