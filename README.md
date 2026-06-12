@@ -25,7 +25,7 @@ Kurmadan önce bilgisayarında şunlar olmalı:
 | **Python 3.10+** | Asistanın beyni | https://www.python.org/downloads (kurulumda **"Add Python to PATH"** kutusunu işaretle!) |
 | **Node.js 18+** | Minecraft botu için (opsiyonel) | https://nodejs.org |
 | **Minecraft Java Edition** | Oyun (opsiyonel) | https://www.minecraft.net — ⚠️ Bedrock/telefon sürümü ÇALIŞMAZ |
-| **Gemini API anahtarı** | Yapay zekâ beyni (ücretsiz) | https://aistudio.google.com/apikey |
+| **Groq API anahtarı** | Yapay zekâ beyni (ücretsiz, hızlı) | https://console.groq.com/keys |
 | **Mikrofon + hoparlör** | Sesli konuşma | — |
 
 > Sadece sesli asistan istiyorsan Node.js ve Minecraft'a gerek yok.
@@ -49,9 +49,9 @@ GitHub'da yeşil **"Code"** butonuna tıkla → **"Download ZIP"** → çıkart.
 ### 3) API anahtarını gir
 İlk açılışta anahtar ister:
 ```
-Gemini API anahtarını gir: ____
+Groq API anahtarını gir: ____
 ```
-https://aistudio.google.com/apikey adresinden ücretsiz anahtar al, yapıştır, **Enter**. Bir kez kaydedilir, bir daha sormaz.
+https://console.groq.com/keys adresinden ücretsiz anahtar al (Google hesabıyla giriş yap → "Create API Key"), yapıştır, **Enter**. Bir kez kaydedilir, bir daha sormaz.
 
 ✅ Hazır! Jarvis "Merhaba, ben Jarvis. Emrindeyim." diyecek.
 

@@ -1,16 +1,18 @@
-"""Jarvis'in beyni: Claude veya Gemini ile düşünür, araçları (tool) çağırır.
+"""Jarvis'in beyni: Groq, Claude veya Gemini ile düşünür, araçları (tool) çağırır.
 
 Hangi beyin kullanılacağı JARVIS_PROVIDER ortam değişkeniyle seçilir:
+  JARVIS_PROVIDER=groq    → Groq / Llama  (GROQ_API_KEY gerekir)  ← varsayılan, hızlı+ücretsiz
+  JARVIS_PROVIDER=gemini  → Google Gemini (GEMINI_API_KEY gerekir)
   JARVIS_PROVIDER=claude  → Anthropic Claude (ANTHROPIC_API_KEY gerekir)
-  JARVIS_PROVIDER=gemini  → Google Gemini   (GEMINI_API_KEY gerekir)  ← varsayılan
 """
+import json
 import os
 
 import mc_bridge
 import memory
 import pc_tools
 
-PROVIDER = os.getenv("JARVIS_PROVIDER", "gemini").lower()
+PROVIDER = os.getenv("JARVIS_PROVIDER", "groq").lower()
 
 SYSTEM = (
     "Sen Jarvis'sin — kullanıcının kişisel sesli asistanı ve Minecraft arkadaşı. "
@@ -55,6 +57,18 @@ SYSTEM = (
 _ALL_TOOLS = pc_tools.TOOLS + mc_bridge.TOOLS
 _FN_MAP = {t["name"]: t["_fn"] for t in _ALL_TOOLS}
 _API_TOOLS_CLAUDE = [{k: v for k, v in t.items() if k != "_fn"} for t in _ALL_TOOLS]
+# OpenAI/Groq tarzı araç şeması
+_API_TOOLS_OPENAI = [
+    {
+        "type": "function",
+        "function": {
+            "name": t["name"],
+            "description": t["description"],
+            "parameters": t["input_schema"],
+        },
+    }
+    for t in _ALL_TOOLS
+]
 
 
 # Gemini'nin proto argümanlarını (iç içe dict/list dahil) saf Python'a çevirir.
@@ -261,10 +275,107 @@ class _ClaudeBrain:
             self.history.append({"role": "user", "content": results})
 
 
+# ── Groq (Llama) ───────────────────────────────────────────────────────────
+# Kota dolarsa sıraki modele geçer. Hepsi tool-calling destekler.
+_GROQ_FALLBACK_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]
+
+
+class _GroqBrain:
+    def __init__(self):
+        from groq import Groq
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY ortam değişkeni eksik.")
+        self.client = Groq(api_key=api_key)
+
+        env_model = os.getenv("JARVIS_MODEL", "")
+        self._models = ([env_model] if env_model else []) + _GROQ_FALLBACK_MODELS
+        self._models = list(dict.fromkeys(self._models))
+        self._model = self._models[0]
+        print(f"[brain] Groq modeli: {self._model}")
+
+        # Hafıza: sistem mesajı + geçmiş düz metinler
+        self.messages = [{"role": "system", "content": SYSTEM}]
+        for m in memory.load():
+            if isinstance(m.get("content"), str):
+                self.messages.append({"role": m["role"], "content": m["content"]})
+
+    def _save(self):
+        # Sadece düz metin user/assistant mesajlarını hafızaya yaz
+        clean = [m for m in self.messages[1:]
+                 if m.get("role") in ("user", "assistant")
+                 and isinstance(m.get("content"), str) and m["content"]]
+        memory.save(clean)
+
+    def think(self, user_text: str) -> str:
+        self.messages.append({"role": "user", "content": user_text})
+
+        while True:
+            try:
+                resp = self.client.chat.completions.create(
+                    model=self._model,
+                    messages=self.messages,
+                    tools=_API_TOOLS_OPENAI,
+                    tool_choice="auto",
+                    max_tokens=600,
+                    temperature=0.6,
+                )
+            except Exception as e:
+                err = str(e)
+                if ("429" in err or "rate" in err.lower()
+                        or "quota" in err.lower()) and len(self._models) > 1:
+                    self._models.pop(0)
+                    self._model = self._models[0]
+                    print(f"[brain] Kota doldu, {self._model}'e geçiliyor...")
+                    continue
+                return f"Groq hatası: {err[:120]}. Anahtarını kontrol et (console.groq.com)."
+
+            msg = resp.choices[0].message
+
+            if not msg.tool_calls:
+                reply = (msg.content or "").strip()
+                self.messages.append({"role": "assistant", "content": reply})
+                self._save()
+                return reply
+
+            # Araç çağrılarını çalıştır
+            self.messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.function.name,
+                                     "arguments": tc.function.arguments},
+                    }
+                    for tc in msg.tool_calls
+                ],
+            })
+            for tc in msg.tool_calls:
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                out = _run_tool(tc.function.name, args)
+                self.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": out,
+                })
+
+
 # ── Dışarıya açılan fabrika ────────────────────────────────────────────────
 def Brain():
     if PROVIDER == "claude":
         print("[brain] Beyin: Claude")
         return _ClaudeBrain()
-    print("[brain] Beyin: Gemini")
-    return _GeminiBrain()
+    if PROVIDER == "gemini":
+        print("[brain] Beyin: Gemini")
+        return _GeminiBrain()
+    print("[brain] Beyin: Groq")
+    return _GroqBrain()
