@@ -4,62 +4,67 @@ title JARVIS
 cd /d "%~dp0"
 
 REM ── Python bul ────────────────────────────────────────────────────────────
+set PYTHON=
 where py >nul 2>nul
-if %errorlevel%==0 (set PYTHON=py) else (set PYTHON=python)
+if %errorlevel%==0 set PYTHON=py
+if "%PYTHON%"=="" (
+    where python >nul 2>nul
+    if %errorlevel%==0 set PYTHON=python
+)
+if "%PYTHON%"=="" (
+    where python3 >nul 2>nul
+    if %errorlevel%==0 set PYTHON=python3
+)
+if "%PYTHON%"=="" (
+    echo.
+    echo *** PYTHON BULUNAMADI ***
+    echo Python'u kur: https://www.python.org/downloads
+    echo Kurulumda "Add Python to PATH" kutusunu isaretle!
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] Python bulundu: %PYTHON%
 
-REM ── Node.js'i PATH'te veya yaygın kurulum klasörlerinde ara ──────────────
-set NODE=
+REM ── Node.js PATH'e ekle (kuruluysa ama PATH'te yoksa) ─────────────────────
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    if exist "%ProgramFiles%\nodejs\node.exe" (
+        set "PATH=%ProgramFiles%\nodejs;%PATH%"
+    )
+    if exist "%ProgramFiles(x86)%\nodejs\node.exe" (
+        set "PATH=%ProgramFiles(x86)%\nodejs;%PATH%"
+    )
+    if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" (
+        set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%"
+    )
+    if exist "%APPDATA%\nvm\current\node.exe" (
+        set "PATH=%APPDATA%\nvm\current;%PATH%"
+    )
+)
+
 where node >nul 2>nul
 if %errorlevel%==0 (
-    set NODE=node
-    goto node_found
+    echo [OK] Node.js bulundu.
+) else (
+    echo [UYARI] Node.js bulunamadi. Minecraft botu calismayadabilir.
+    echo   Cozum: nodejs.org'dan LTS indir ve bilgisayari yeniden baslatit.
 )
 
-REM Yaygın Node.js kurulum yolları
-for %%P in (
-    "%ProgramFiles%\nodejs\node.exe"
-    "%ProgramFiles(x86)%\nodejs\node.exe"
-    "%APPDATA%\nvm\current\node.exe"
-    "%LOCALAPPDATA%\Programs\nodejs\node.exe"
-    "%ProgramFiles%\nvm\current\node.exe"
-) do (
-    if exist %%P (
-        set NODE=%%P
-        REM Klasörü PATH'e geçici ekle
-        for %%D in (%%P) do set "PATH=%PATH%;%%~dpD"
-        goto node_found
-    )
-)
-
-echo.
-echo *** NODE.JS BULUNAMADI ***
-echo Node.js kurulu olmasına rağmen bulunamıyorsa:
-echo   1. Bilgisayarı yeniden başlat (kurulum PATH'i henüz uygulanmamış olabilir)
-echo   2. Veya Node.js'i buradan tekrar kur: https://nodejs.org (LTS)
-echo      Kurulumda "Add to PATH" seçeneği işaretli olmalı.
-echo   3. Minecraft botu çalışmayacak ama sesli asistan çalışır.
-echo.
-set NODE=
-goto start_jarvis
-
-:node_found
-echo [OK] Node.js bulundu: %NODE%
-
-REM ── node_modules yoksa npm install çalıştır ───────────────────────────────
+REM ── node_modules yoksa npm install calistir ───────────────────────────────
 if not exist "%~dp0node_modules" (
-    echo Minecraft botu için paketler kuruluyor...
-    npm install --prefix "%~dp0" --silent
-    if %errorlevel% neq 0 (
-        echo [UYARI] npm install basarisiz. Minecraft botu calismayabilir.
-    ) else (
-        echo [OK] npm kurulumu tamamlandi.
+    where npm >nul 2>nul
+    if %errorlevel%==0 (
+        echo Minecraft botu icin paketler kuruluyor...
+        npm install --prefix "%~dp0" --silent
     )
 )
 
-:start_jarvis
+REM ── Jarvis'i baslat ──────────────────────────────────────────────────────
 echo.
 echo JARVIS baslatiliyor...
-%PYTHON% jarvis.py %*
+echo.
+%PYTHON% "%~dp0jarvis.py" %*
 
 echo.
 echo Jarvis kapandi.
