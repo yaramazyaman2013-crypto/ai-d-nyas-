@@ -166,9 +166,21 @@ def _save_key(env_var: str, value: str):
 
 
 def _setup_keys():
-    provider = os.getenv("JARVIS_PROVIDER", "gemini").lower()
+    provider = os.getenv("JARVIS_PROVIDER", "groq").lower()
 
-    if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
+    if provider == "groq" and not os.getenv("GROQ_API_KEY"):
+        print("─" * 50)
+        print("Groq API anahtarı bulunamadı.")
+        print("→ https://console.groq.com/keys (ücretsiz, hızlı)")
+        key = input("Groq API anahtarını gir: ").strip()
+        if not key:
+            print("Anahtar girilmedi, çıkılıyor.")
+            sys.exit(1)
+        os.environ["GROQ_API_KEY"] = key
+        _save_key("GROQ_API_KEY", key)
+        print("─" * 50)
+
+    elif provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
         print("─" * 50)
         print("Gemini API anahtarı bulunamadı.")
         print("→ https://aistudio.google.com/apikey")
