@@ -1,21 +1,21 @@
-"""JARVIS — ana döngü. Dinle → düşün → konuş.
+"""JARVIS — ana döngü.
 
-Çalıştır:  python jarvis.py
-İlk çalıştırmada gerekli kütüphaneler otomatik yüklenir.
-Konuşmak için ENTER'a bas, konuş, bitince tekrar ENTER.
-Çıkmak için Ctrl+C.
+Çalıştır:
+  python jarvis.py            → bas-konuş modu (Enter)
+  python jarvis.py --wake     → sürekli dinleme, "Jarvis" de uyan
+
+İlk çalıştırmada eksik kütüphaneler otomatik yüklenir.
 """
 import os
 import subprocess
 import sys
 
-# ── Otomatik kurulum (diğer import'lardan önce) ────────────────────────────
+# ── Otomatik kurulum ────────────────────────────────────────────────────────
 def _auto_install():
     req = os.path.join(os.path.dirname(__file__), "requirements.txt")
     if not os.path.exists(req):
         return
 
-    # Hangi paketler eksik?
     import importlib.util
 
     pkg_map = {
@@ -28,22 +28,19 @@ def _auto_install():
         "dotenv": "python-dotenv",
         "websockets": "websockets",
     }
-
     missing = [
         pip for mod, pip in pkg_map.items()
         if importlib.util.find_spec(mod.split(".")[0]) is None
     ]
-
     if missing:
         print("─" * 50)
         print(f"Eksik kütüphaneler kuruluyor: {', '.join(missing)}")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--quiet", "-r", req]
         )
-        print("✓ Kurulum tamamlandı.")
+        print("✓ Python kurulumu tamamlandı.")
         print("─" * 50)
 
-    # Node.js bağımlılıkları (bot.js için)
     node_modules = os.path.join(os.path.dirname(__file__), "node_modules")
     pkg_json = os.path.join(os.path.dirname(__file__), "package.json")
     if os.path.exists(pkg_json) and not os.path.exists(node_modules):
@@ -53,7 +50,7 @@ def _auto_install():
                 ["npm", "install", "--silent"],
                 cwd=os.path.dirname(__file__)
             )
-            print("✓ npm kurulum tamamlandı.")
+            print("✓ npm kurulumu tamamlandı.")
         except FileNotFoundError:
             print("⚠ Node.js bulunamadı — Minecraft botu için nodejs kur.")
         except subprocess.CalledProcessError:
@@ -62,7 +59,7 @@ def _auto_install():
 
 _auto_install()
 
-# ── Normal import'lar (kurulum sonrası) ───────────────────────────────────
+# ── Normal import'lar ────────────────────────────────────────────────────────
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
@@ -127,33 +124,55 @@ def _setup_keys():
         print("─" * 50)
 
 
+# ── Modlar ──────────────────────────────────────────────────────────────────
+def run_push_to_talk(jarvis):
+    """Klasik mod: Enter'a bas, konuş, cevabı al."""
+    print("Mod: Bas-konuş  (Çıkış: Ctrl+C)")
+    while True:
+        audio = voice.record_until_enter()
+        text = voice.transcribe(audio)
+        if not text:
+            print("   (ses anlaşılmadı, tekrar dene)")
+            continue
+        print(f"👤 Sen: {text}")
+        reply = jarvis.think(text)
+        print(f"🤖 Jarvis: {reply}")
+        voice.speak(reply)
+
+
+def run_wake_word(jarvis):
+    """Sürekli dinleme modu: 'Jarvis' de, konuş."""
+    print(f"Mod: Uyandırma kelimesi — '{voice.WAKE_WORD}' de  (Çıkış: Ctrl+C)")
+    listener = voice.WakeWordListener(on_command=jarvis.think)
+    listener.start()
+    try:
+        # Ana thread'i canlı tut
+        import time
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        listener.stop()
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     print(BANNER)
     _setup_keys()
 
     jarvis = brain.Brain()
     voice.speak("Merhaba, ben Jarvis. Emrindeyim.")
-    print("Hazırım. (Çıkış: Ctrl+C)")
 
-    while True:
-        try:
-            audio = voice.record_until_enter()
-            text = voice.transcribe(audio)
-            if not text:
-                print("   (ses anlaşılmadı, tekrar dene)")
-                continue
+    wake_mode = "--wake" in sys.argv
 
-            print(f"👤 Sen: {text}")
-            reply = jarvis.think(text)
-            print(f"🤖 Jarvis: {reply}")
-            voice.speak(reply)
-
-        except KeyboardInterrupt:
-            print("\nGörüşürüz!")
-            voice.speak("Görüşmek üzere.")
-            sys.exit(0)
-        except Exception as e:
-            print(f"[hata] {e}")
+    try:
+        if wake_mode:
+            run_wake_word(jarvis)
+        else:
+            run_push_to_talk(jarvis)
+    except KeyboardInterrupt:
+        print("\nGörüşürüz!")
+        voice.speak("Görüşmek üzere.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

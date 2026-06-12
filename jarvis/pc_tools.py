@@ -91,6 +91,94 @@ def system_info() -> str:
             f"Python: {platform.python_version()}.")
 
 
+def media_control(action: str) -> str:
+    """Medyayı kontrol eder: play_pause, next, previous, stop."""
+    try:
+        if IS_MAC:
+            applescript = {
+                "play_pause": 'tell application "Spotify" to playpause',
+                "next": 'tell application "Spotify" to next track',
+                "previous": 'tell application "Spotify" to previous track',
+            }
+            script = applescript.get(action, "")
+            if script:
+                subprocess.run(["osascript", "-e", script], check=True)
+        elif sys.platform.startswith("linux"):
+            cmd_map = {
+                "play_pause": ["playerctl", "play-pause"],
+                "next": ["playerctl", "next"],
+                "previous": ["playerctl", "previous"],
+                "stop": ["playerctl", "stop"],
+            }
+            subprocess.run(cmd_map.get(action, ["true"]), check=True)
+        elif IS_WIN:
+            import ctypes
+            vk = {"play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "stop": 0xB2}
+            code = vk.get(action)
+            if code:
+                ctypes.windll.user32.keybd_event(code, 0, 0, 0)
+                ctypes.windll.user32.keybd_event(code, 0, 2, 0)
+        return f"Medya: {action} yapıldı."
+    except Exception as e:
+        return f"Medya kontrolü başarısız: {e}"
+
+
+def lock_screen() -> str:
+    """Ekranı/bilgisayarı kilitler."""
+    try:
+        if IS_MAC:
+            subprocess.run(["pmset", "displaysleepnow"], check=True)
+        elif sys.platform.startswith("linux"):
+            for cmd in (["gnome-screensaver-command", "-l"],
+                        ["xdg-screensaver", "lock"],
+                        ["loginctl", "lock-session"]):
+                try:
+                    subprocess.run(cmd, check=True)
+                    break
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    continue
+        elif IS_WIN:
+            import ctypes
+            ctypes.windll.user32.LockWorkStation()
+        return "Ekran kilitlendi."
+    except Exception as e:
+        return f"Kilitleme başarısız: {e}"
+
+
+def clipboard_copy(metin: str) -> str:
+    """Metni panoya kopyalar."""
+    try:
+        if IS_MAC:
+            subprocess.run(["pbcopy"], input=metin.encode(), check=True)
+        elif sys.platform.startswith("linux"):
+            subprocess.run(["xclip", "-selection", "clipboard"],
+                           input=metin.encode(), check=True)
+        elif IS_WIN:
+            subprocess.run(["clip"], input=metin.encode("utf-16"), check=True)
+        return f"Panoya kopyalandı: {metin[:50]}{'...' if len(metin)>50 else ''}"
+    except Exception as e:
+        return f"Kopyalama başarısız: {e}"
+
+
+def type_text(metin: str) -> str:
+    """Klavyeyle metin yazar (aktif pencereye)."""
+    try:
+        if IS_MAC:
+            subprocess.run(["osascript", "-e",
+                            f'tell application "System Events" to keystroke "{metin}"'])
+        elif sys.platform.startswith("linux"):
+            subprocess.run(["xdotool", "type", "--clearmodifiers", metin])
+        elif IS_WIN:
+            import ctypes
+            for ch in metin:
+                vk = ctypes.windll.user32.VkKeyScanW(ch)
+                ctypes.windll.user32.keybd_event(vk & 0xff, 0, 0, 0)
+                ctypes.windll.user32.keybd_event(vk & 0xff, 0, 2, 0)
+        return f"Yazıldı: {metin[:50]}"
+    except Exception as e:
+        return f"Yazma başarısız: {e}"
+
+
 # ── Claude'a tanıtılan araç şemaları ──────────────────────────────────────
 # Her şema bir PC fonksiyonuna karşılık gelir. "_fn" çalıştırılacak fonksiyon.
 TOOLS = [
@@ -151,5 +239,41 @@ TOOLS = [
         "name": "system_info",
         "description": "Bilgisayarın işletim sistemi ve donanım bilgisini verir.",
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "_fn": media_control,
+        "name": "media_control",
+        "description": "Müzik/medya çalar kontrolü: play_pause (oynat/durdur), next (sonraki), previous (önceki), stop.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"action": {"type": "string", "enum": ["play_pause", "next", "previous", "stop"]}},
+            "required": ["action"],
+        },
+    },
+    {
+        "_fn": lock_screen,
+        "name": "lock_screen",
+        "description": "Bilgisayar ekranını kilitler.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "_fn": clipboard_copy,
+        "name": "clipboard_copy",
+        "description": "Bir metni panoya kopyalar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"metin": {"type": "string"}},
+            "required": ["metin"],
+        },
+    },
+    {
+        "_fn": type_text,
+        "name": "type_text",
+        "description": "Aktif pencereye klavyeyle metin yazar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"metin": {"type": "string"}},
+            "required": ["metin"],
+        },
     },
 ]
