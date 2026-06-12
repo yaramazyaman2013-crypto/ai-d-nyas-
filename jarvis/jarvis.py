@@ -2,15 +2,16 @@
 
 Çalıştır:  python jarvis.py
 Konuşmak için ENTER'a bas, konuş, bitince tekrar ENTER.
-Çıkmak için boş konuşma yap ya da Ctrl+C.
+Çıkmak için Ctrl+C.
 """
+import os
 import sys
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-import brain  # noqa: E402  (load_dotenv'den sonra import şart)
+import brain  # noqa: E402
 import voice  # noqa: E402
 
 BANNER = r"""
@@ -23,8 +24,37 @@ BANNER = r"""
 """
 
 
+def _setup_keys():
+    """Eksik API anahtarlarını başlangıçta kullanıcıdan iste."""
+    provider = os.getenv("JARVIS_PROVIDER", "gemini").lower()
+
+    if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
+        print("─" * 50)
+        print("Gemini API anahtarı bulunamadı.")
+        print("→ https://aistudio.google.com/apikey adresinden alabilirsin.")
+        key = input("Gemini API anahtarını gir: ").strip()
+        if not key:
+            print("Anahtar girilmedi, çıkılıyor.")
+            sys.exit(1)
+        os.environ["GEMINI_API_KEY"] = key
+        print("─" * 50)
+
+    elif provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
+        print("─" * 50)
+        print("Claude API anahtarı bulunamadı.")
+        print("→ https://console.anthropic.com adresinden alabilirsin.")
+        key = input("Anthropic API anahtarını gir: ").strip()
+        if not key:
+            print("Anahtar girilmedi, çıkılıyor.")
+            sys.exit(1)
+        os.environ["ANTHROPIC_API_KEY"] = key
+        print("─" * 50)
+
+
 def main():
     print(BANNER)
+    _setup_keys()
+
     jarvis = brain.Brain()
     voice.speak("Merhaba, ben Jarvis. Emrindeyim.")
     print("Hazırım. (Çıkış: Ctrl+C)")
