@@ -429,6 +429,61 @@ const skills = {
       : `${key} inşa edemedim. Malzeme veya yer sorunu olabilir.`
   },
 
+  // ── Özel/serbest inşaat (LLM kendi tasarlar) ──────────────────────────────
+  // blocks: bota göre relatif koordinatlardaki blok listesi
+  //   [{ dx, dy, dz, block }]  — yapay zekâ herhangi bir yapıyı tasarlayıp gönderir.
+  async build_custom({ blocks = [] } = {}) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      return 'İnşa edilecek blok listesi boş.'
+    }
+    const Vec3 = require('vec3')
+    // Botun 2 blok önündeki konumu taban al
+    const base = bot.entity.position.floored().offset(0, 0, 2)
+
+    // Alttan üste sırala — her blok altındaki bloğa dayanarak yerleşsin
+    const sorted = blocks.slice().sort((a, b) => (a.dy || 0) - (b.dy || 0))
+
+    let placed = 0, eksikMalzeme = 0, ulasamadi = 0
+    const usedMaterials = new Set()
+
+    for (const b of sorted) {
+      const blockName = (b.block || '').toLowerCase()
+      const item = bot.inventory.items().find(
+        i => i.name === blockName || i.name.includes(blockName))
+      if (!item) { eksikMalzeme++; usedMaterials.add(blockName); continue }
+
+      const target = base.offset(b.dx || 0, b.dy || 0, b.dz || 0)
+      try {
+        await bot.equip(item, 'hand')
+        await bot.pathfinder.goto(new goals.GoalNear(target.x, target.y, target.z, 3))
+        // Altındaki, yanındaki veya üstündeki dolu bir komşuya dayan
+        const neighbors = [
+          [target.offset(0, -1, 0), new Vec3(0, 1, 0)],
+          [target.offset(0, 1, 0), new Vec3(0, -1, 0)],
+          [target.offset(1, 0, 0), new Vec3(-1, 0, 0)],
+          [target.offset(-1, 0, 0), new Vec3(1, 0, 0)],
+          [target.offset(0, 0, 1), new Vec3(0, 0, -1)],
+          [target.offset(0, 0, -1), new Vec3(0, 0, 1)],
+        ]
+        let done = false
+        for (const [refPos, face] of neighbors) {
+          const ref = bot.blockAt(refPos)
+          if (ref && ref.name !== 'air' && ref.boundingBox === 'block') {
+            try { await bot.placeBlock(ref, face); placed++; done = true; break } catch {}
+          }
+        }
+        if (!done) ulasamadi++
+      } catch { ulasamadi++ }
+    }
+
+    let msg = `Yapıyı kurdum — ${placed} blok yerleştirdim.`
+    if (eksikMalzeme > 0) {
+      msg += ` ${eksikMalzeme} blok için malzeme yetmedi (${[...usedMaterials].join(', ')}).`
+    }
+    if (ulasamadi > 0) msg += ` ${ulasamadi} blok ulaşılamadı/havada kaldı.`
+    return msg
+  },
+
   // ── Hayatta kalma görevi ─────────────────────────────────────────────────
   async survive({ sure = 60 } = {}) {
     // Belirtilen süre boyunca (saniye) hayatta kalır:

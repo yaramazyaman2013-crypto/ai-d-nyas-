@@ -30,7 +30,23 @@ SYSTEM = (
     "kömür=coal, demir=iron, altın=gold, elmas=diamond, "
     "lapis=lapis, kırmızıtaş=redstone, zümrüt=emerald, bakır=copper. "
 
-    "Kullanıcı 'bize' veya 'bize birlikte' diyorsa inşaat/maden görevini başlat. "
+    "SERBEST İNŞAAT (mc_build_custom): Kullanıcı 'ev yap', 'kale yap', 'havuz yap', "
+    "'bana güzel bir villa kur' gibi hazır şablonda olmayan bir şey isterse, "
+    "yapıyı KENDİN tasarla. Minecraft mimari bilgini kullanarak bloğun relatif "
+    "koordinatlarını (dx, dy, dz) ve blok türünü içeren bir liste oluştur ve "
+    "mc_build_custom'a ver. Örnek bir ev: zemin döşemesi, 4 duvar (kapı boşluğu bırak), "
+    "pencereler için glass, çatı. Botun envanterindeki malzemeyi kullan; malzeme yoksa "
+    "önce 'ağaç kes' veya 'taş kaz' ile topla. "
+
+    "ESNEK ANLAMA: Kullanıcı kesin komut vermez, doğal konuşur. Niyetini çıkar. "
+    "Örnekler: 'biraz kömüre ihtiyacımız var' → mc_mine_mission(coal). "
+    "'şuraya bir ev kondursana' → mc_build_custom (ev tasarla). "
+    "'karnın acıkmıştır ye bir şeyler' → mc_eat. 'yanıma gelsene' → mc_come. "
+    "Hangi aracın uygun olduğunu sen karar ver, kullanıcının tam kelimeleri önemli değil. "
+
+    "Bir görev birden çok adım gerektiriyorsa (örn. ev yapmak için önce odun lazımsa) "
+    "adımları sırayla yap: önce malzeme topla, sonra inşa et. "
+
     "Araç çağırman gerekmiyorsa sadece sohbet et. "
     "Önceki konuşmaları hatırlıyorsun. "
     "Cevapların sesli okunacağı için emoji ve madde işareti kullanma."
@@ -39,6 +55,17 @@ SYSTEM = (
 _ALL_TOOLS = pc_tools.TOOLS + mc_bridge.TOOLS
 _FN_MAP = {t["name"]: t["_fn"] for t in _ALL_TOOLS}
 _API_TOOLS_CLAUDE = [{k: v for k, v in t.items() if k != "_fn"} for t in _ALL_TOOLS]
+
+
+# Gemini'nin proto argümanlarını (iç içe dict/list dahil) saf Python'a çevirir.
+def _to_py(value):
+    if hasattr(value, "items"):          # MapComposite / dict
+        return {k: _to_py(v) for k, v in value.items()}
+    if isinstance(value, (str, bytes)):  # str iterable ama liste değil
+        return value
+    if hasattr(value, "__iter__"):       # RepeatedComposite / list
+        return [_to_py(v) for v in value]
+    return value
 
 
 # ── Araç çalıştırma (ortak) ────────────────────────────────────────────────
@@ -106,7 +133,7 @@ class _GeminiBrain:
 
             results = []
             for call in fn_calls:
-                out = _run_tool(call.name, dict(call.args))
+                out = _run_tool(call.name, _to_py(call.args))
                 results.append(
                     self._genai.protos.Part(
                         function_response=self._genai.protos.FunctionResponse(

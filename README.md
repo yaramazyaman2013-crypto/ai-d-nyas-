@@ -61,19 +61,20 @@ https://aistudio.google.com/apikey adresinden ücretsiz anahtar al, yapıştır,
 
 İki mod var:
 
-**Bas-konuş (varsayılan)** — `baslat.bat`
+**Sürekli dinleme (varsayılan)** — `baslat.bat`
+> Hiçbir tuşa basmadan **"Jarvis"** de → o uyanır ve seni dinler. Enter gerekmez.
+
+**Bas-konuş** — `baslat.bat --enter`
 > ENTER'a bas → konuş → ENTER'a bas → Jarvis cevaplar.
 
-**Sürekli dinleme** — `baslat.bat --wake`
-> Hiçbir tuşa basmadan **"Jarvis"** de, o uyanır ve dinler.
-
-### Örnek komutlar
-- "Jarvis, Chrome'u aç"
-- "Sesi yüzde elli yap"
-- "Müziği durdur"
-- "Saat kaç?"
-- "Ekranı kilitle"
-- "Bana en yakın kediyi YouTube'da ara"
+### Komutlar serbest — kelimesi kelimesine söylemen gerekmez
+Jarvis ne demek istediğini anlar. Örnekler:
+- "Jarvis, Chrome'u açsana"
+- "Sesi biraz kıs"
+- "Şu müziği durdur artık"
+- "Saat kaç acaba?"
+- "Bilgisayarı kilitle"
+- Minecraft: "bize biraz kömür lazım", "şuraya güzel bir ev kondur", "yanıma gelsene"
 
 ---
 

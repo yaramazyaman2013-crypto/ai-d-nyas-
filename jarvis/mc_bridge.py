@@ -254,6 +254,41 @@ TOOLS = [
         },
     },
     {
+        "_fn": lambda blocks, **_: _send("build_custom", {"blocks": blocks}),
+        "name": "mc_build_custom",
+        "description": (
+            "Özel/serbest yapı inşa eder — SEN tasarlarsın. "
+            "Ev, kale, heykel, havuz, kafe gibi istediğin yapıyı kendi bilginle tasarla "
+            "ve bloklarının listesini ver. blocks: bota göre relatif koordinatlardaki "
+            "blok listesi [{dx, dy, dz, block}]. dx=sağ/sol, dy=yukarı/aşağı, dz=ileri. "
+            "Alt katmanları küçük dy ile ver (yapı alttan üste kurulur). "
+            "block alanı Minecraft blok adıdır (örn. oak_planks, cobblestone, glass, oak_door). "
+            "Kullanıcı 'ev yap', 'kale yap' gibi serbest bir şey isterse bunu kullan — "
+            "kendi mimari bilginle tasarla. Malzemeler botun envanterinde olmalı. "
+            "Çok büyük yapılarda 200 bloğu geçme, gerekirse parça parça inşa et."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "description": "Yerleştirilecek bloklar (alttan üste)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "dx": {"type": "integer"},
+                            "dy": {"type": "integer"},
+                            "dz": {"type": "integer"},
+                            "block": {"type": "string"},
+                        },
+                        "required": ["dx", "dy", "dz", "block"],
+                    },
+                },
+            },
+            "required": ["blocks"],
+        },
+    },
+    {
         "_fn": lambda sure=60, **_: _send("survive", {"sure": int(sure)}),
         "name": "mc_survive",
         "description": (
