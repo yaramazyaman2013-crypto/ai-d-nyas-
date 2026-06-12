@@ -57,15 +57,37 @@ def _auto_install():
             print("⚠ npm install başarısız — Minecraft botu çalışmayabilir.")
 
 
-_auto_install()
+def _pause_on_crash(stage: str, exc: BaseException):
+    """Hata olursa pencerenin kapanmaması için hatayı göster ve bekle."""
+    import traceback
+    print("\n" + "═" * 50)
+    print(f"HATA ({stage}) — Jarvis başlatılamadı:")
+    print("═" * 50)
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
+    print("═" * 50)
+    print("\nHatayı yukarıda görebilirsin. Yardım için bu mesajı paylaş.")
+    try:
+        input("\nKapatmak için ENTER'a bas...")
+    except Exception:
+        pass
+    sys.exit(1)
+
+
+try:
+    _auto_install()
+except Exception as _e:
+    _pause_on_crash("kurulum", _e)
 
 # ── Normal import'lar ────────────────────────────────────────────────────────
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
-import brain  # noqa: E402
-import voice  # noqa: E402
+try:
+    import brain  # noqa: E402
+    import voice  # noqa: E402
+except Exception as _e:
+    _pause_on_crash("import", _e)
 
 BANNER = r"""
    ___  ____  ____  _   _ ___ ____
@@ -176,4 +198,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception as _e:
+        _pause_on_crash("çalışma", _e)
