@@ -1,71 +1,41 @@
 @echo off
-chcp 65001 >nul
 title JARVIS
-cd /d "%~dp0"
+chcp 65001 >nul
 
-REM ── Python bul ────────────────────────────────────────────────────────────
+set "DIR=%~dp0"
+pushd "%DIR%"
+
+REM --- Python ---
 set PYTHON=
-where py >nul 2>nul
-if %errorlevel%==0 set PYTHON=py
+where py >nul 2>nul && set PYTHON=py
+if "%PYTHON%"=="" where python >nul 2>nul && set PYTHON=python
 if "%PYTHON%"=="" (
-    where python >nul 2>nul
-    if %errorlevel%==0 set PYTHON=python
+    echo Python bulunamadi. python.org adresinden kur.
+    pause & exit /b 1
 )
-if "%PYTHON%"=="" (
-    where python3 >nul 2>nul
-    if %errorlevel%==0 set PYTHON=python3
-)
-if "%PYTHON%"=="" (
-    echo.
-    echo *** PYTHON BULUNAMADI ***
-    echo Python'u kur: https://www.python.org/downloads
-    echo Kurulumda "Add Python to PATH" kutusunu isaretle!
-    echo.
-    pause
-    exit /b 1
-)
-echo [OK] Python bulundu: %PYTHON%
 
-REM ── Node.js PATH'e ekle (kuruluysa ama PATH'te yoksa) ─────────────────────
+REM --- Node.js PATH ---
 where node >nul 2>nul
-if %errorlevel% neq 0 (
-    if exist "%ProgramFiles%\nodejs\node.exe" (
-        set "PATH=%ProgramFiles%\nodejs;%PATH%"
-    )
-    if exist "%ProgramFiles(x86)%\nodejs\node.exe" (
-        set "PATH=%ProgramFiles(x86)%\nodejs;%PATH%"
-    )
-    if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" (
-        set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%"
-    )
-    if exist "%APPDATA%\nvm\current\node.exe" (
-        set "PATH=%APPDATA%\nvm\current;%PATH%"
-    )
+if errorlevel 1 (
+    if exist "%ProgramFiles%\nodejs" set "PATH=%ProgramFiles%\nodejs;%PATH%"
+    if exist "%LOCALAPPDATA%\Programs\nodejs" set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%"
+    if exist "%APPDATA%\nvm\current" set "PATH=%APPDATA%\nvm\current;%PATH%"
 )
 
-where node >nul 2>nul
-if %errorlevel%==0 (
-    echo [OK] Node.js bulundu.
-) else (
-    echo [UYARI] Node.js bulunamadi. Minecraft botu calismayadabilir.
-    echo   Cozum: nodejs.org'dan LTS indir ve bilgisayari yeniden baslatit.
-)
-
-REM ── node_modules yoksa npm install calistir ───────────────────────────────
-if not exist "%~dp0node_modules" (
+REM --- npm install (sadece node_modules yoksa) ---
+if not exist "node_modules" (
     where npm >nul 2>nul
-    if %errorlevel%==0 (
-        echo Minecraft botu icin paketler kuruluyor...
-        npm install --prefix "%~dp0" --silent
+    if not errorlevel 1 (
+        echo npm install calisiyor...
+        npm install
     )
 )
 
-REM ── Jarvis'i baslat ──────────────────────────────────────────────────────
+REM --- Jarvis ---
 echo.
-echo JARVIS baslatiliyor...
-echo.
-%PYTHON% "%~dp0jarvis.py" %*
+%PYTHON% jarvis.py %*
 
 echo.
 echo Jarvis kapandi.
 pause
+popd
