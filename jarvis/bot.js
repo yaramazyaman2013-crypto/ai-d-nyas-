@@ -138,6 +138,104 @@ const skills = {
     bot.chat(text)
     return 'Söyledim.'
   },
+
+  async craft({ item, count = 1 } = {}) {
+    // Crafting table bul veya envanterde craft et
+    const recipe = await bot.recipesFor(mcData.itemsByName[item]?.id, null, 1, null)
+    if (!recipe || recipe.length === 0) return `${item} için tarif bilmiyorum.`
+    try {
+      const table = bot.findBlock({ matching: mcData.blocksByName['crafting_table']?.id, maxDistance: 32 })
+      if (table) {
+        await bot.pathfinder.goto(new goals.GoalNear(table.position.x, table.position.y, table.position.z, 1))
+        await bot.craft(recipe[0], count, table)
+      } else {
+        await bot.craft(recipe[0], count, null)
+      }
+      return `${count}x ${item} yaptım.`
+    } catch (e) {
+      return `${item} yapamadım: ${e.message}`
+    }
+  },
+
+  async eat({ food = null } = {}) {
+    // Yiyecek bul ve ye
+    const foods = bot.inventory.items().filter(i => bot.registry.itemsByName[i.name]?.food)
+    const target = food
+      ? foods.find(i => i.name.includes(food))
+      : foods.sort((a,b) => (bot.registry.itemsByName[b.name]?.food?.saturation||0) - (bot.registry.itemsByName[a.name]?.food?.saturation||0))[0]
+    if (!target) return food ? `${food} envanterde yok.` : 'Yiyecek yok.'
+    await bot.equip(target, 'hand')
+    await bot.consume()
+    return `${target.name} yedim. Açlık: ${Math.round(bot.food)}.`
+  },
+
+  async sleep() {
+    const bed = bot.findBlock({
+      matching: (b) => bot.isABed(b),
+      maxDistance: 32
+    })
+    if (!bed) return 'Yakında yatak yok.'
+    try {
+      await bot.pathfinder.goto(new goals.GoalNear(bed.position.x, bed.position.y, bed.position.z, 1))
+      await bot.sleep(bed)
+      return 'Uyuyorum.'
+    } catch (e) {
+      return `Uyuyamadım: ${e.message}`
+    }
+  },
+
+  async inventory() {
+    const items = bot.inventory.items()
+    if (!items.length) return 'Envanter boş.'
+    const summary = {}
+    for (const i of items) summary[i.name] = (summary[i.name] || 0) + i.count
+    return 'Envanter: ' + Object.entries(summary).map(([n,c]) => `${c}x ${n}`).join(', ') + '.'
+  },
+
+  async drop({ item, count = 1 } = {}) {
+    const found = bot.inventory.items().find(i => i.name.includes(item))
+    if (!found) return `${item} envanterde yok.`
+    await bot.toss(found.type, null, Math.min(count, found.count))
+    return `${count}x ${item} düşürdüm.`
+  },
+
+  async equip({ item } = {}) {
+    const found = bot.inventory.items().find(i => i.name.includes(item))
+    if (!found) return `${item} envanterde yok.`
+    await bot.equip(found, 'hand')
+    return `${item} elimde.`
+  },
+
+  async place_block({ block, x, y, z } = {}) {
+    const found = bot.inventory.items().find(i => i.name.includes(block))
+    if (!found) return `${block} envanterde yok.`
+    await bot.equip(found, 'hand')
+    const refBlock = bot.blockAt(new (require('vec3'))(x, y - 1, z))
+    if (!refBlock) return 'Hedef konum geçersiz.'
+    await bot.placeBlock(refBlock, new (require('vec3'))(0, 1, 0))
+    return `${block} yerleştirdim.`
+  },
+
+  async go_to({ x, y, z } = {}) {
+    following = null
+    await bot.pathfinder.goto(new goals.GoalNear(x, y, z, 1))
+    return `${x}, ${y}, ${z} konumuna geldim.`
+  },
+
+  async mine({ block, count = 1 } = {}) {
+    const def = mcData.blocksByName[block]
+    if (!def) return `'${block}' bloğunu tanımıyorum.`
+    let mined = 0
+    for (let i = 0; i < count; i++) {
+      const found = bot.findBlock({ matching: def.id, maxDistance: 32 })
+      if (!found) break
+      const tool = bot.pathfinder.bestHarvestTool(found)
+      if (tool) await bot.equip(tool, 'hand')
+      await bot.pathfinder.goto(new goals.GoalNear(found.position.x, found.position.y, found.position.z, 1))
+      try { await bot.dig(found); mined++ } catch {}
+    }
+    return mined ? `${mined} ${block} kazıdım.` : `Yakında ${block} yok.`
+  },
 }
 
 // ── WebSocket sunucusu (Python köprüsü buraya bağlanır) ─────────────────────
@@ -162,4 +260,14 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ ok: false, message: `Hata: ${e.message}` }))
     }
   })
+})
+
+bot.on('health', () => {
+  if (bot.health < 8 && bot.food > 0) {
+    // düşük can — yemek ye
+    const food = bot.inventory.items().find(i => bot.registry.itemsByName[i.name]?.food)
+    if (food) {
+      bot.equip(food, 'hand').then(() => bot.consume()).catch(() => {})
+    }
+  }
 })

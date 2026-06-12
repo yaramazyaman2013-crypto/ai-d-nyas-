@@ -135,4 +135,88 @@ TOOLS = [
             "required": ["mesaj"],
         },
     },
+    {
+        "_fn": lambda item="crafting_table", count=1, **_: _send("craft", {"item": item, "count": int(count)}),
+        "name": "mc_craft",
+        "description": "Minecraft'ta eşya yapar (craft eder). Örn. crafting_table, wooden_pickaxe, torch.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string", "description": "Yapılacak eşya adı (minecraft id, örn. wooden_pickaxe)"},
+                "count": {"type": "integer"},
+            },
+            "required": ["item"],
+        },
+    },
+    {
+        "_fn": lambda food=None, **_: _send("eat", {"food": food} if food else {}),
+        "name": "mc_eat",
+        "description": "Bot envanterdeki yiyeceği yer. food parametresi opsiyonel (belirtilmezse en iyi yiyeceği seçer).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"food": {"type": "string", "description": "Yenecek yiyecek adı (opsiyonel)"}},
+        },
+    },
+    {
+        "_fn": lambda **_: _send("sleep"),
+        "name": "mc_sleep",
+        "description": "Bot yakındaki yatakta uyur.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "_fn": lambda **_: _send("inventory"),
+        "name": "mc_inventory",
+        "description": "Botun envanterini listeler.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "_fn": lambda item, count=1, **_: _send("drop", {"item": item, "count": int(count)}),
+        "name": "mc_drop",
+        "description": "Envanterdeki bir eşyayı yere düşürür.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string"},
+                "count": {"type": "integer"},
+            },
+            "required": ["item"],
+        },
+    },
+    {
+        "_fn": lambda item, **_: _send("equip", {"item": item}),
+        "name": "mc_equip",
+        "description": "Bir eşyayı eline alır/kuşanır.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"item": {"type": "string"}},
+            "required": ["item"],
+        },
+    },
+    {
+        "_fn": lambda block, count=1, **_: _send("mine", {"block": block, "count": int(count)}),
+        "name": "mc_mine",
+        "description": "Belirtilen blok türünü kazır (örn. stone, coal_ore, iron_ore, dirt).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "block": {"type": "string"},
+                "count": {"type": "integer"},
+            },
+            "required": ["block"],
+        },
+    },
+    {
+        "_fn": lambda x, y, z, **_: _send("go_to", {"x": int(x), "y": int(y), "z": int(z)}),
+        "name": "mc_go_to",
+        "description": "Botu belirtilen koordinatlara gönderir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"},
+                "z": {"type": "integer"},
+            },
+            "required": ["x", "y", "z"],
+        },
+    },
 ]

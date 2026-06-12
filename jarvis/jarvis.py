@@ -1,18 +1,93 @@
-"""JARVIS — ana döngü. Dinle → düşün → konuş.
+"""JARVIS — ana döngü.
 
-Çalıştır:  python jarvis.py
-Konuşmak için ENTER'a bas, konuş, bitince tekrar ENTER.
-Çıkmak için Ctrl+C.
+Çalıştır:
+  python jarvis.py            → bas-konuş modu (Enter)
+  python jarvis.py --wake     → sürekli dinleme, "Jarvis" de uyan
+
+İlk çalıştırmada eksik kütüphaneler otomatik yüklenir.
 """
 import os
+import subprocess
 import sys
 
-from dotenv import load_dotenv
+# ── Otomatik kurulum ────────────────────────────────────────────────────────
+def _auto_install():
+    req = os.path.join(os.path.dirname(__file__), "requirements.txt")
+    if not os.path.exists(req):
+        return
+
+    import importlib.util
+
+    pkg_map = {
+        "anthropic": "anthropic",
+        "google.generativeai": "google-generativeai",
+        "faster_whisper": "faster-whisper",
+        "edge_tts": "edge-tts",
+        "sounddevice": "sounddevice",
+        "numpy": "numpy",
+        "dotenv": "python-dotenv",
+        "websockets": "websockets",
+    }
+    missing = [
+        pip for mod, pip in pkg_map.items()
+        if importlib.util.find_spec(mod.split(".")[0]) is None
+    ]
+    if missing:
+        print("─" * 50)
+        print(f"Eksik kütüphaneler kuruluyor: {', '.join(missing)}")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet", "-r", req]
+        )
+        print("✓ Python kurulumu tamamlandı.")
+        print("─" * 50)
+
+    node_modules = os.path.join(os.path.dirname(__file__), "node_modules")
+    pkg_json = os.path.join(os.path.dirname(__file__), "package.json")
+    if os.path.exists(pkg_json) and not os.path.exists(node_modules):
+        try:
+            print("Minecraft botu için Node.js paketleri kuruluyor...")
+            subprocess.check_call(
+                ["npm", "install", "--silent"],
+                cwd=os.path.dirname(__file__)
+            )
+            print("✓ npm kurulumu tamamlandı.")
+        except FileNotFoundError:
+            print("⚠ Node.js bulunamadı — Minecraft botu için nodejs kur.")
+        except subprocess.CalledProcessError:
+            print("⚠ npm install başarısız — Minecraft botu çalışmayabilir.")
+
+
+def _pause_on_crash(stage: str, exc: BaseException):
+    """Hata olursa pencerenin kapanmaması için hatayı göster ve bekle."""
+    import traceback
+    print("\n" + "═" * 50)
+    print(f"HATA ({stage}) — Jarvis başlatılamadı:")
+    print("═" * 50)
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
+    print("═" * 50)
+    print("\nHatayı yukarıda görebilirsin. Yardım için bu mesajı paylaş.")
+    try:
+        input("\nKapatmak için ENTER'a bas...")
+    except Exception:
+        pass
+    sys.exit(1)
+
+
+try:
+    _auto_install()
+except Exception as _e:
+    _pause_on_crash("kurulum", _e)
+
+# ── Normal import'lar ────────────────────────────────────────────────────────
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
-import brain  # noqa: E402
-import voice  # noqa: E402
+try:
+    import brain  # noqa: E402
+    import voice  # noqa: E402
+except Exception as _e:
+    _pause_on_crash("import", _e)
 
 BANNER = r"""
    ___  ____  ____  _   _ ___ ____
@@ -23,18 +98,14 @@ BANNER = r"""
    Sesli Asistan + Minecraft Botu
 """
 
-
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
 
 
 def _save_key(env_var: str, value: str):
-    """Anahtarı .env dosyasına kalıcı olarak yazar."""
     lines = []
     if os.path.exists(ENV_FILE):
         with open(ENV_FILE, "r", encoding="utf-8") as f:
             lines = f.readlines()
-
-    # Varsa güncelle, yoksa ekle
     key_line = f"{env_var}={value}\n"
     for i, line in enumerate(lines):
         if line.startswith(f"{env_var}="):
@@ -42,20 +113,18 @@ def _save_key(env_var: str, value: str):
             break
     else:
         lines.append(key_line)
-
     with open(ENV_FILE, "w", encoding="utf-8") as f:
         f.writelines(lines)
-    print(f"   ✓ Anahtar .env dosyasına kaydedildi (bir daha sorulmayacak).")
+    print("   ✓ Anahtar kaydedildi, bir daha sorulmayacak.")
 
 
 def _setup_keys():
-    """Eksik API anahtarlarını başlangıçta kullanıcıdan iste ve kaydet."""
     provider = os.getenv("JARVIS_PROVIDER", "gemini").lower()
 
     if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
         print("─" * 50)
         print("Gemini API anahtarı bulunamadı.")
-        print("→ https://aistudio.google.com/apikey adresinden alabilirsin.")
+        print("→ https://aistudio.google.com/apikey")
         key = input("Gemini API anahtarını gir: ").strip()
         if not key:
             print("Anahtar girilmedi, çıkılıyor.")
@@ -67,7 +136,7 @@ def _setup_keys():
     elif provider == "claude" and not os.getenv("ANTHROPIC_API_KEY"):
         print("─" * 50)
         print("Claude API anahtarı bulunamadı.")
-        print("→ https://console.anthropic.com adresinden alabilirsin.")
+        print("→ https://console.anthropic.com")
         key = input("Anthropic API anahtarını gir: ").strip()
         if not key:
             print("Anahtar girilmedi, çıkılıyor.")
@@ -77,34 +146,61 @@ def _setup_keys():
         print("─" * 50)
 
 
+# ── Modlar ──────────────────────────────────────────────────────────────────
+def run_push_to_talk(jarvis):
+    """Klasik mod: Enter'a bas, konuş, cevabı al."""
+    print("Mod: Bas-konuş  (Çıkış: Ctrl+C)")
+    while True:
+        audio = voice.record_until_enter()
+        text = voice.transcribe(audio)
+        if not text:
+            print("   (ses anlaşılmadı, tekrar dene)")
+            continue
+        print(f"👤 Sen: {text}")
+        reply = jarvis.think(text)
+        print(f"🤖 Jarvis: {reply}")
+        voice.speak(reply)
+
+
+def run_wake_word(jarvis):
+    """Sürekli dinleme modu: 'Jarvis' de, konuş."""
+    print(f"Mod: Uyandırma kelimesi — '{voice.WAKE_WORD}' de  (Çıkış: Ctrl+C)")
+    listener = voice.WakeWordListener(on_command=jarvis.think)
+    listener.start()
+    try:
+        # Ana thread'i canlı tut
+        import time
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        listener.stop()
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     print(BANNER)
     _setup_keys()
 
     jarvis = brain.Brain()
     voice.speak("Merhaba, ben Jarvis. Emrindeyim.")
-    print("Hazırım. (Çıkış: Ctrl+C)")
 
-    while True:
-        try:
-            audio = voice.record_until_enter()
-            text = voice.transcribe(audio)
-            if not text:
-                print("   (ses anlaşılmadı, tekrar dene)")
-                continue
+    wake_mode = "--wake" in sys.argv
 
-            print(f"👤 Sen: {text}")
-            reply = jarvis.think(text)
-            print(f"🤖 Jarvis: {reply}")
-            voice.speak(reply)
-
-        except KeyboardInterrupt:
-            print("\nGörüşürüz!")
-            voice.speak("Görüşmek üzere.")
-            sys.exit(0)
-        except Exception as e:
-            print(f"[hata] {e}")
+    try:
+        if wake_mode:
+            run_wake_word(jarvis)
+        else:
+            run_push_to_talk(jarvis)
+    except KeyboardInterrupt:
+        print("\nGörüşürüz!")
+        voice.speak("Görüşmek üzere.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception as _e:
+        _pause_on_crash("çalışma", _e)

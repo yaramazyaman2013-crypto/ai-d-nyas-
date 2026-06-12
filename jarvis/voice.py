@@ -1,43 +1,51 @@
-"""Jarvis'in kulağı ve ağzı: mikrofon (Whisper STT) + sesli cevap (edge-tts)."""
+"""Jarvis'in kulağı ve ağzı.
+
+İki dinleme modu:
+  - record_until_enter()  → klasik bas-konuş (Enter)
+  - listen_for_wake_word() → sürekli dinler, "Jarvis" duyunca uyanır
+
+Ses çıkışı: edge-tts ile Türkçe konuşma.
+"""
 import asyncio
 import os
 import queue
 import sys
 import tempfile
+import threading
 
 import numpy as np
 import sounddevice as sd
 
 SAMPLE_RATE = 16000
+WAKE_WORD = os.getenv("JARVIS_WAKE_WORD", "jarvis").lower()
 
 _whisper_model = None
 
 
 def _get_whisper():
-    """Whisper modelini tembel yükle (ilk kullanımda indirilir)."""
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
-
         size = os.getenv("JARVIS_STT_MODEL", "small")
         print(f"[voice] Whisper '{size}' yükleniyor...")
         _whisper_model = WhisperModel(size, device="cpu", compute_type="int8")
     return _whisper_model
 
 
+# ── Bas-konuş modu ──────────────────────────────────────────────────────────
 def record_until_enter() -> np.ndarray:
-    """Bas-konuş: Enter'a basınca kayda başlar, tekrar Enter'a basınca biter."""
+    """Enter'a basınca kayıt başlar, tekrar Enter'a basınca biter."""
     input("\n🎤 Konuşmak için ENTER'a bas...")
     print("   ● Kayıt... (bitince ENTER)")
 
-    frames = queue.Queue()
+    frames: queue.Queue = queue.Queue()
 
     def callback(indata, *_):
         frames.put(indata.copy())
 
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-                        callback=callback):
-        input()  # ikinci Enter kaydı durdurur
+    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                        dtype="float32", callback=callback):
+        input()
 
     chunks = []
     while not frames.empty():
@@ -47,18 +55,124 @@ def record_until_enter() -> np.ndarray:
     return np.concatenate(chunks, axis=0).flatten()
 
 
+# ── Sürekli dinleme + uyandırma kelimesi ────────────────────────────────────
+class WakeWordListener:
+    """Arka planda sürekli mikrofonu dinler.
+
+    Ses seviyesi eşiği geçince kayıt başlar, sustukça biter.
+    Transkript "jarvis" içeriyorsa callback çağrılır; içermiyorsa sessizce atar.
+
+    Kullanım:
+        listener = WakeWordListener(on_command=jarvis.think)
+        listener.start()   # arka planda çalışır
+        listener.stop()    # durdur
+    """
+
+    CHUNK = 512           # her seferinde okunan sample sayısı
+    SILENCE_THRESHOLD = 0.015   # RMS eşiği — altıysa sessiz
+    SILENCE_SECS = 1.5    # bu kadar sessizlik = konuşma bitti
+    MAX_RECORD_SECS = 15  # tek konuşma en fazla bu kadar
+
+    def __init__(self, on_command):
+        self._on_command = on_command  # fn(metin: str) -> str
+        self._running = False
+        self._thread = None
+
+    def start(self):
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+        print(f"[voice] Sürekli dinleme aktif — uyandırma kelimesi: '{WAKE_WORD}'")
+
+    def stop(self):
+        self._running = False
+
+    # ── iç döngü ──────────────────────────────────────────────────────────
+    def _loop(self):
+        buf: queue.Queue = queue.Queue()
+
+        def cb(indata, *_):
+            buf.put(indata.copy())
+
+        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1,
+                            dtype="float32", blocksize=self.CHUNK, callback=cb):
+            while self._running:
+                chunk = buf.get()
+                rms = float(np.sqrt(np.mean(chunk ** 2)))
+                if rms < self.SILENCE_THRESHOLD:
+                    continue
+
+                # Ses başladı — kayda geç
+                print("   ◉ Dinleniyor...")
+                frames = [chunk]
+                silence_count = 0
+                max_chunks = int(self.MAX_RECORD_SECS * SAMPLE_RATE / self.CHUNK)
+
+                for _ in range(max_chunks):
+                    c = buf.get()
+                    frames.append(c)
+                    if float(np.sqrt(np.mean(c ** 2))) < self.SILENCE_THRESHOLD:
+                        silence_count += 1
+                    else:
+                        silence_count = 0
+                    if silence_count >= int(self.SILENCE_SECS * SAMPLE_RATE / self.CHUNK):
+                        break
+
+                audio = np.concatenate(frames, axis=0).flatten()
+                text = transcribe(audio)
+                if not text:
+                    continue
+
+                if WAKE_WORD in text.lower():
+                    # Uyandırma kelimesini temizle
+                    clean = text.lower().replace(WAKE_WORD, "").strip(" ,.")
+                    if not clean:
+                        speak("Evet?")
+                        clean = _listen_once(buf)  # cevabı bekle
+                    if clean:
+                        print(f"👤 Sen: {clean}")
+                        reply = self._on_command(clean)
+                        print(f"🤖 Jarvis: {reply}")
+                        speak(reply)
+
+
+def _listen_once(buf: queue.Queue) -> str:
+    """Ses başlayana kadar bekle, bitince transkript döndür."""
+    import time
+    deadline = time.time() + 5  # 5 saniye içinde konuşmazsa boş dön
+    while time.time() < deadline:
+        chunk = buf.get(timeout=1)
+        rms = float(np.sqrt(np.mean(chunk ** 2)))
+        if rms < WakeWordListener.SILENCE_THRESHOLD:
+            continue
+        frames = [chunk]
+        silence = 0
+        for _ in range(int(10 * SAMPLE_RATE / WakeWordListener.CHUNK)):
+            c = buf.get()
+            frames.append(c)
+            if float(np.sqrt(np.mean(c ** 2))) < WakeWordListener.SILENCE_THRESHOLD:
+                silence += 1
+            else:
+                silence = 0
+            if silence >= int(1.5 * SAMPLE_RATE / WakeWordListener.CHUNK):
+                break
+        audio = np.concatenate(frames, axis=0).flatten()
+        return transcribe(audio)
+    return ""
+
+
+# ── Transkripsiyon ──────────────────────────────────────────────────────────
 def transcribe(audio: np.ndarray) -> str:
-    """Ses dalgasını Türkçe metne çevirir."""
-    if audio.size < SAMPLE_RATE // 2:  # 0.5sn'den kısa
+    if audio.size < SAMPLE_RATE // 2:
         return ""
     model = _get_whisper()
     segments, _ = model.transcribe(audio, language="tr", beam_size=1)
     return " ".join(s.text for s in segments).strip()
 
 
+# ── Sesli cevap ─────────────────────────────────────────────────────────────
 async def _speak_async(text: str):
     import edge_tts
-
     voice = os.getenv("JARVIS_VOICE", "tr-TR-AhmetNeural")
     path = os.path.join(tempfile.gettempdir(), "jarvis_out.mp3")
     await edge_tts.Communicate(text, voice).save(path)
@@ -66,32 +180,28 @@ async def _speak_async(text: str):
 
 
 def speak(text: str):
-    """Metni sesli okur."""
     if not text:
         return
     asyncio.run(_speak_async(text))
 
 
 def _play(path: str):
-    """mp3'ü platformdan bağımsız çal (harici oynatıcı çağırır)."""
     import subprocess
-
     try:
         if sys.platform == "darwin":
             subprocess.run(["afplay", path], check=False)
         elif sys.platform.startswith("win"):
-            # PowerShell ile çal — ek bağımlılık gerektirmez
             subprocess.run(
                 ["powershell", "-c",
-                 f"(New-Object Media.SoundPlayer);"
                  f"Add-Type -AssemblyName presentationCore;"
                  f"$p=New-Object System.Windows.Media.MediaPlayer;"
                  f"$p.Open('{path}');$p.Play();Start-Sleep 10"],
                 check=False)
         else:
-            # Linux: ffplay/mpg123 dene
-            for player in (["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path],
-                           ["mpg123", "-q", path]):
+            for player in (
+                ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path],
+                ["mpg123", "-q", path],
+            ):
                 try:
                     subprocess.run(player, check=True)
                     break
